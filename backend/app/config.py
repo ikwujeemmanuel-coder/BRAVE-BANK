@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     database_url: Optional[str] = Field(default=None, alias="DATABASE_URL")
+    direct_url: Optional[str] = Field(default=None, alias="DIRECT_URL")
     test_database_url: Optional[str] = Field(default=None, alias="TEST_DATABASE_URL")
 
     email_provider: str = Field(default="mock", alias="EMAIL_PROVIDER")
