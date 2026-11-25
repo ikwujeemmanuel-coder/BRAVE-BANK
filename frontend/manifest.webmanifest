@@ -1,0 +1,22 @@
+{
+  "name": "BraveBank — Banking Without Limits",
+  "short_name": "BraveBank",
+  "description": "BraveBank modern Nigerian digital banking prototype with FastAPI and PostgreSQL.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F3F6FF",
+  "theme_color": "#007BFF",
+  "icons": [
+    {
+      "src": "/assets/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

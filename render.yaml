@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: bravebank
+    runtime: python
+    plan: free
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt && alembic -c backend/alembic.ini upgrade head
+    startCommand: uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.2"
+      - key: APP_NAME
+        value: BRAVEBANK
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: REFRESH_TOKEN_EXPIRE_DAYS
+        value: "7"
+      - key: DATABASE_URL
+        sync: false
+      - key: SMS_PROVIDER
+        value: mock
+      - key: ALLOWED_ORIGINS
+        sync: false

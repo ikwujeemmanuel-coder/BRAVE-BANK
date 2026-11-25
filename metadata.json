@@ -1,0 +1,5 @@
+{
+  "name": "BRAVE BANK",
+  "description": "Digital banking application migrated from Python/FastAPI scaffold to Node.js and Express with in-memory account and transaction persistence.",
+  "requestFramePermissions": []
+}

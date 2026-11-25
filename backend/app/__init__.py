@@ -1,0 +1,1 @@
+"""BraveBank FastAPI application package."""

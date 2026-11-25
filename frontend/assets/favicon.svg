@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="bbBg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="52%" stop-color="#0052CC"/>
+      <stop offset="100%" stop-color="#007BFF"/>
+    </linearGradient>
+    <linearGradient id="bbStarFill" x1="20" y1="18" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#E0EEFF"/>
+      <stop offset="100%" stop-color="#7CC0FF"/>
+    </linearGradient>
+    <mask id="bbSwooshCut">
+      <rect width="128" height="128" fill="white"/>
+      <path d="M18 98 Q56 58 112 52 Q66 66 34 106 Z" fill="black"/>
+      <path d="M22 86 Q60 48 114 48 Q64 56 30 92 Z" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#bbBg)"/>
+  <g mask="url(#bbSwooshCut)">
+    <path d="M64 16L78.2 46.2L111.5 50.6L87 73.8L93.2 106.8L64 90.8L34.8 106.8L41 73.8L16.5 50.6L49.8 46.2L64 16Z" fill="url(#bbStarFill)"/>
+  </g>
+</svg>

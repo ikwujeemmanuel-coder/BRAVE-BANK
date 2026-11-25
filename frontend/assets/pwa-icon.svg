@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <radialGradient id="pwaBg" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#1E7DFF"/>
+      <stop offset="55%" stop-color="#005CE6"/>
+      <stop offset="100%" stop-color="#002670"/>
+    </radialGradient>
+    <linearGradient id="pwaStar" x1="100" y1="80" x2="412" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="65%" stop-color="#DBEAFE"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <mask id="pwaCut">
+      <rect width="512" height="512" fill="white"/>
+      <path d="M64 398 Q228 214 456 196 Q266 250 130 434 Z" fill="black"/>
+      <path d="M84 352 Q236 180 456 182 Q256 212 114 374 Z" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#pwaBg)"/>
+  <g mask="url(#pwaCut)">
+    <path d="M256 64L312 182L442 199L347 289L371 418L256 356L141 418L165 289L70 199L200 182L256 64Z" fill="url(#pwaStar)"/>
+  </g>
+</svg>
