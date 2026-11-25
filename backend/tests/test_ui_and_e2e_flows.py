@@ -19,6 +19,7 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
         "/js/bills.js",
         "/js/savings.js",
         "/js/cards.js",
+        "/js/config.js",
         "/js/history.js",
         "/js/notifications.js",
         "/js/profile.js",
@@ -74,6 +75,14 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
         "Savings",
     ):
         assert action_label in dashboard_js
+
+    config_js = client.get("/js/config.js").text
+    assert "https://brave-bank.onrender.com" in config_js
+
+    api_js = client.get("/js/api.js").text
+    assert 'credentials: "include"' in api_js
+    assert 'credentials: "same-origin"' not in api_js
+    assert "buildApiUrl" in api_js
 
 
 def test_complete_end_to_end_banking_journey_with_leading_zero_pin(client: TestClient):

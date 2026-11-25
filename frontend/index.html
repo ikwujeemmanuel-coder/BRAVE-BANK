@@ -62,7 +62,7 @@
 
           <div class="welcome-body">
             <div class="welcome-copy">
-              <h1>Welcome to <span>BraveBank</span></h1>
+              <h1>Welcome to <span class="welcome-brand-accent">BraveBank</span></h1>
               <p>Bank smarter, live better with secure and reliable banking services.</p>
             </div>
 
@@ -87,25 +87,34 @@
             </div>
           </div>
 
-          <!-- City Skyline Silhouette & Blue Wave matching Welcome Reference -->
+          <!-- City Skyline Silhouette & Layered Blue Wave matching Welcome Reference -->
           <div class="welcome-skyline" aria-hidden="true">
-            <svg viewBox="0 0 400 108" preserveAspectRatio="none">
+            <svg viewBox="0 0 400 112" preserveAspectRatio="none">
               <defs>
-                <linearGradient id="skylineFill" x1="200" y1="10" x2="200" y2="96" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#9CC5FF" stop-opacity="0.65"/>
-                  <stop offset="100%" stop-color="#007BFF" stop-opacity="0.35"/>
+                <linearGradient id="skylineBack" x1="200" y1="8" x2="200" y2="96" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#D2E4FF" stop-opacity="0.85"/>
+                  <stop offset="100%" stop-color="#79B4FF" stop-opacity="0.45"/>
                 </linearGradient>
-                <linearGradient id="skylineWave" x1="0" y1="70" x2="400" y2="108" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stop-color="#005CE6"/>
-                  <stop offset="65%" stop-color="#007BFF"/>
+                <linearGradient id="skylineFill" x1="200" y1="14" x2="200" y2="98" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#87BAFF" stop-opacity="0.82"/>
+                  <stop offset="100%" stop-color="#0066E6" stop-opacity="0.58"/>
+                </linearGradient>
+                <linearGradient id="skylineWave" x1="0" y1="74" x2="400" y2="112" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#003EB3"/>
+                  <stop offset="52%" stop-color="#007BFF"/>
                   <stop offset="100%" stop-color="#3390FF"/>
                 </linearGradient>
               </defs>
               <path
-                d="M0 98V74h14V58h16v16h10V44h18v30h8V34h12V24h10v10h8v40h12V50h14v24h10V36h18v38h12V18h16v56h10V46h22v28h10V28h14V14h10v14h10v46h12V48h16v26h10V38h18v36h12V52h16v22h12V40h18v34h12V60h14v38H0z"
+                d="M0 98V78h18V54h14v24h16V38h16v40h12V46h16v32h18V22h16v56h14V44h18v34h16V18h14v60h18V40h18v38h16V30h16v48h16V52h18v26h18V42h16v36h18V60h18v38H0z"
+                fill="url(#skylineBack)"
+              />
+              <path
+                d="M0 100V74h12V60h16v14h10V46h16v28h10V32h12V24h8v10h8v40h12V50h14v24h10V36h18v38h12V16h16v58h10V46h20v28h10V28h14V14h10v14h10v46h12V48h16v26h10V38h18v36h12V52h16v22h12V40h18v34h12V60h14v40H0z"
                 fill="url(#skylineFill)"
               />
-              <path d="M0 84 C 95 98, 265 68, 400 84 L 400 108 L 0 108 Z" fill="url(#skylineWave)"/>
+              <path d="M0 84 C 110 104, 270 64, 400 84 L 400 112 L 0 112 Z" fill="#3390FF" opacity="0.48"/>
+              <path d="M0 90 C 125 68, 285 104, 400 80 L 400 112 L 0 112 Z" fill="url(#skylineWave)"/>
             </svg>
           </div>
         </section>
@@ -181,7 +190,12 @@
             </div>
           </form>
 
-          <div class="auth-wave-bottom" aria-hidden="true"></div>
+          <div class="auth-wave-bottom" aria-hidden="true">
+            <svg viewBox="0 0 440 56" preserveAspectRatio="none">
+              <path d="M0 32 C 130 56, 295 8, 440 28 L 440 56 L 0 56 Z" fill="#3390FF" opacity="0.42"/>
+              <path d="M0 40 C 145 14, 305 54, 440 20 L 440 56 L 0 56 Z" fill="#007BFF"/>
+            </svg>
+          </div>
         </section>
 
         <!-- SCREEN 4: 4-STEP PROGRESSIVE REGISTRATION (DETAILS -> VERIFY EMAIL -> SET PIN -> SUCCESS) -->
@@ -358,10 +372,9 @@
 
               <div class="inbox-info-box">
                 <span class="inbox-info-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <line x1="12" y1="16" x2="12" y2="12"/>
-                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="16.5" x2="12" y2="11"/>
+                    <line x1="12" y1="7.5" x2="12.01" y2="7.5"/>
                   </svg>
                 </span>
                 <span>Check your inbox for the verification code.</span>
@@ -445,7 +458,12 @@
               </button>
             </div>
           </div>
-          <div class="auth-wave-bottom" aria-hidden="true"></div>
+          <div class="auth-wave-bottom" aria-hidden="true">
+            <svg viewBox="0 0 440 56" preserveAspectRatio="none">
+              <path d="M0 32 C 130 56, 295 8, 440 28 L 440 56 L 0 56 Z" fill="#3390FF" opacity="0.42"/>
+              <path d="M0 40 C 145 14, 305 54, 440 20 L 440 56 L 0 56 Z" fill="#007BFF"/>
+            </svg>
+          </div>
         </section>
 
         <!-- FORGOT PASSWORD SCREEN -->
@@ -507,7 +525,12 @@
               <button type="submit" class="btn btn-primary btn-pill btn-full">Reset Password</button>
             </form>
           </div>
-          <div class="auth-wave-bottom" aria-hidden="true"></div>
+          <div class="auth-wave-bottom" aria-hidden="true">
+            <svg viewBox="0 0 440 56" preserveAspectRatio="none">
+              <path d="M0 32 C 130 56, 295 8, 440 28 L 440 56 L 0 56 Z" fill="#3390FF" opacity="0.42"/>
+              <path d="M0 40 C 145 14, 305 54, 440 20 L 440 56 L 0 56 Z" fill="#007BFF"/>
+            </svg>
+          </div>
         </section>
       </div>
       <p class="auth-prototype-note">

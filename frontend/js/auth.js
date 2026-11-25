@@ -127,6 +127,7 @@ export function initAuthFlow({ enterAuthenticatedShell }) {
             body: JSON.stringify({ phone_number: phone, password }),
           });
           appState.accessToken = data.access_token || null;
+          appState.csrfToken = data.csrf_token || null;
           appState.user = data.user;
           appState.pendingRegistration = null;
           await enterAuthenticatedShell();

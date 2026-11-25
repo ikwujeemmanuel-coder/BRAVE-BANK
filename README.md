@@ -43,6 +43,7 @@ BRAVE-BANK/
 │   │   ├── auth.js
 │   │   ├── bills.js
 │   │   ├── cards.js
+│   │   ├── config.js
 │   │   ├── dashboard.js
 │   │   ├── history.js
 │   │   ├── icons.js
@@ -114,9 +115,14 @@ BRAVE-BANK/
 
 ## Render + Neon PostgreSQL Deployment
 
-1. Create a Neon PostgreSQL database and copy its `postgresql://...` connection string.
-2. Push this repository to GitHub and create a new **Blueprint** or **Web Service** on Render using `render.yaml`.
-3. Set the required secret environment variables in Render:
-   - `DATABASE_URL`: Neon PostgreSQL connection string
-   - `ALLOWED_ORIGINS`: Your Render app URL (e.g. `https://bravebank.onrender.com`)
-4. Render executes `pip install -r requirements.txt && alembic -c backend/alembic.ini upgrade head` on build and starts Uvicorn on `$PORT`, verifying `/api/health`.
+1. Create a Neon PostgreSQL database and copy its `postgresql://...` connection string (with `?sslmode=require`).
+2. Push this repository to GitHub (`ikwujeemmanuel-coder/BRAVE-BANK`).
+3. On Render, choose **New + -> Blueprint** and select the repository (`render.yaml` is preconfigured for Python `3.13.2`, Frankfurt region, and `/api/health` checks).
+4. Provide the prompted secret environment variables in Render:
+   - `DATABASE_URL`: Neon PostgreSQL connection string (`postgresql://...`)
+   - `EMAIL_PROVIDER`: `smtp`
+   - `SMTP_HOST`, `SMTP_PORT` (`587`), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (required for sending 6-digit registration Email OTPs in production)
+   - `FRONTEND_URL`: `https://bravebank-frontend.onrender.com`
+   - `ALLOWED_ORIGINS`: `https://bravebank-frontend.onrender.com` (`RENDER_EXTERNAL_URL` is also auto-included)
+5. Render builds dependencies (`pip install -r requirements.txt`), runs `alembic -c backend/alembic.ini upgrade head`, and starts FastAPI (`uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"`).
+6. Deploy the **Frontend Static Site** with root directory `frontend/`. `frontend/js/config.js` centrally routes production requests from `https://bravebank-frontend.onrender.com` to `https://brave-bank.onrender.com` while keeping local development on `localhost:3000` same-origin.

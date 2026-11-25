@@ -47,9 +47,14 @@ class Settings(BaseSettings):
     otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
 
     allowed_origins: str = Field(
-        default="http://localhost:3000,http://127.0.0.1:3000",
+        default="http://localhost:3000,http://127.0.0.1:3000,https://bravebank-frontend.onrender.com",
         alias="ALLOWED_ORIGINS",
     )
+    frontend_url: Optional[str] = Field(
+        default="https://bravebank-frontend.onrender.com",
+        alias="FRONTEND_URL",
+    )
+    render_external_url: Optional[str] = Field(default=None, alias="RENDER_EXTERNAL_URL")
     port: int = Field(default=3000, alias="PORT")
 
     @field_validator("app_env")
@@ -66,7 +71,19 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins(self) -> List[str]:
-        return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+        origins: List[str] = []
+        candidates = [origin.strip().rstrip("/") for origin in self.allowed_origins.split(",")]
+        if self.frontend_url:
+            candidates.append(self.frontend_url.strip().rstrip("/"))
+        if self.render_external_url:
+            candidates.append(self.render_external_url.strip().rstrip("/"))
+
+        for origin in candidates:
+            if not origin or origin == "*":
+                continue
+            if origin not in origins:
+                origins.append(origin)
+        return origins
 
     def validate_runtime(self) -> None:
         if self.app_env == "production" and (

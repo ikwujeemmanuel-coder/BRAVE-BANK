@@ -1,23 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
   <defs>
-    <linearGradient id="starTopLight" x1="18" y1="12" x2="95" y2="95" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#38B6FF"/>
-      <stop offset="50%" stop-color="#007BFF"/>
-      <stop offset="100%" stop-color="#0042B8"/>
+    <linearGradient id="bbA" x1="14" y1="10" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4AC3FF"/>
+      <stop offset="48%" stop-color="#007BFF"/>
+      <stop offset="100%" stop-color="#003EB3"/>
     </linearGradient>
-    <linearGradient id="starDeepRight" x1="60" y1="16" x2="105" y2="104" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#0066E6"/>
-      <stop offset="100%" stop-color="#002F87"/>
+    <linearGradient id="bbB" x1="60" y1="12" x2="108" y2="102" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0068EB"/>
+      <stop offset="100%" stop-color="#00287A"/>
     </linearGradient>
-    <mask id="starSwooshMask">
+    <mask id="bbSwoosh">
       <rect width="120" height="120" fill="white"/>
-      <path d="M12 94 Q52 50 112 45 Q64 58 28 104 Z" fill="black"/>
-      <path d="M18 82 Q55 41 112 42 Q61 48 24 88 Z" fill="black"/>
+      <path d="M10 94 Q49 48 112 43 Q62 56 26 103 Z" fill="black"/>
+      <path d="M16 80 Q53 38 111 40 Q59 46 22 86 Z" fill="black"/>
     </mask>
   </defs>
-  <g mask="url(#starSwooshMask)">
-    <path d="M60 8L74.8 39.2L109.5 43.8L84.2 67.6L90.6 101.8L60 85.2L29.4 101.8L35.8 67.6L10.5 43.8L45.2 39.2L60 8Z" fill="url(#starTopLight)"/>
-    <path d="M60 8L74.8 39.2L109.5 43.8L84.2 67.6L90.6 101.8L60 85.2V8Z" fill="url(#starDeepRight)" opacity="0.72"/>
-    <path d="M60 8L74.8 39.2L60 54L45.2 39.2L60 8Z" fill="#63C7FF" opacity="0.65"/>
+  <g mask="url(#bbSwoosh)">
+    <path d="M60 7L75.2 38.8L110.2 43.5L84.6 67.8L91.2 102.4L60 85.6L28.8 102.4L35.4 67.8L9.8 43.5L44.8 38.8L60 7Z" fill="url(#bbA)"/>
+    <path d="M60 7L75.2 38.8L110.2 43.5L84.6 67.8L91.2 102.4L60 85.6V7Z" fill="url(#bbB)" opacity="0.82"/>
+    <path d="M60 7L75.2 38.8L60 53L44.8 38.8L60 7Z" fill="#6ED0FF" opacity="0.72"/>
   </g>
 </svg>

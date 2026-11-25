@@ -441,6 +441,7 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
             }),
           });
           appState.accessToken = data.access_token || null;
+          appState.csrfToken = data.csrf_token || null;
           appState.user = data.user;
           appState.pendingRegistration = { step: "success", user: data.user };
           showToast("BraveBank account created successfully!", "success");

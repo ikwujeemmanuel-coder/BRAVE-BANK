@@ -131,3 +131,63 @@ def test_multi_customer_isolation_and_persistence_across_restart(client, db_sess
         assert dash["secondary_currency"]["currency"] == "USD"
         assert dash["secondary_currency"]["enabled"] is False
         assert len(fresh_client.get("/api/cards", headers=fresh_headers).json()) == 1
+
+
+def test_render_blueprint_and_external_url_cors_support(monkeypatch):
+    from pathlib import Path
+    import yaml
+    from backend.app.config import get_settings
+
+    render_cfg = yaml.safe_load(Path("render.yaml").read_text(encoding="utf-8"))
+    svc = render_cfg["services"][0]
+    assert svc["runtime"] == "python"
+    assert svc["healthCheckPath"] == "/api/health"
+    assert "alembic -c backend/alembic.ini upgrade head" in svc["startCommand"]
+    assert "--proxy-headers" in svc["startCommand"]
+    env_keys = {item["key"]: item for item in svc["envVars"]}
+    assert env_keys["EMAIL_PROVIDER"]["value"] == "smtp"
+    assert "SMTP_HOST" in env_keys and "SMTP_PASSWORD" in env_keys
+
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://brave-bank.onrender.com/")
+    monkeypatch.setenv("ALLOWED_ORIGINS", "https://bravebank-frontend.onrender.com,*")
+    get_settings.cache_clear()
+    try:
+        settings = get_settings()
+        assert "https://brave-bank.onrender.com" in settings.cors_origins
+        assert "https://bravebank-frontend.onrender.com" in settings.cors_origins
+        assert "*" not in settings.cors_origins
+
+        cors_app = create_app()
+        with TestClient(cors_app) as cors_client:
+            preflight_ok = cors_client.options(
+                "/api/auth/login",
+                headers={
+                    "Origin": "https://bravebank-frontend.onrender.com",
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "Authorization, Content-Type, X-CSRF-Token, X-Requested-With",
+                },
+            )
+            assert preflight_ok.status_code == 200
+            assert (
+                preflight_ok.headers.get("access-control-allow-origin")
+                == "https://bravebank-frontend.onrender.com"
+            )
+            assert preflight_ok.headers.get("access-control-allow-credentials") == "true"
+            allowed_headers = (preflight_ok.headers.get("access-control-allow-headers") or "").lower()
+            assert "x-csrf-token" in allowed_headers
+            assert "authorization" in allowed_headers
+
+            preflight_denied = cors_client.options(
+                "/api/auth/login",
+                headers={
+                    "Origin": "https://evil-phishing.example",
+                    "Access-Control-Request-Method": "POST",
+                },
+            )
+            assert "access-control-allow-origin" not in preflight_denied.headers
+    finally:
+        monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
+        monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
+        get_settings.cache_clear()
+
+

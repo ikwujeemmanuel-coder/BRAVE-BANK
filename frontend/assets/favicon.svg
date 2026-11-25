@@ -1,23 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
   <defs>
-    <linearGradient id="bbBg" x1="12" y1="8" x2="116" y2="120" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#0F172A"/>
-      <stop offset="52%" stop-color="#0052CC"/>
-      <stop offset="100%" stop-color="#007BFF"/>
+    <linearGradient id="bbFavBg" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0052CC"/>
+      <stop offset="55%" stop-color="#007BFF"/>
+      <stop offset="100%" stop-color="#3390FF"/>
     </linearGradient>
-    <linearGradient id="bbStarFill" x1="20" y1="18" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+    <linearGradient id="bbFavStar" x1="22" y1="18" x2="98" y2="104" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="55%" stop-color="#E0EEFF"/>
-      <stop offset="100%" stop-color="#7CC0FF"/>
+      <stop offset="100%" stop-color="#CFE7FF"/>
     </linearGradient>
-    <mask id="bbSwooshCut">
-      <rect width="128" height="128" fill="white"/>
-      <path d="M18 98 Q56 58 112 52 Q66 66 34 106 Z" fill="black"/>
-      <path d="M22 86 Q60 48 114 48 Q64 56 30 92 Z" fill="black"/>
+    <mask id="bbFavSwoosh">
+      <rect width="120" height="120" fill="white"/>
+      <path d="M18 89 Q52 50 104 45 Q62 56 32 96 Z" fill="black"/>
+      <path d="M24 77 Q55 42 103 42 Q60 47 28 82 Z" fill="black"/>
     </mask>
   </defs>
-  <rect width="128" height="128" rx="30" fill="url(#bbBg)"/>
-  <g mask="url(#bbSwooshCut)">
-    <path d="M64 16L78.2 46.2L111.5 50.6L87 73.8L93.2 106.8L64 90.8L34.8 106.8L41 73.8L16.5 50.6L49.8 46.2L64 16Z" fill="url(#bbStarFill)"/>
+  <rect width="120" height="120" rx="28" fill="url(#bbFavBg)"/>
+  <g mask="url(#bbFavSwoosh)">
+    <path d="M60 18L72.6 43.8L101.4 47.6L80.2 67.6L85.7 96.2L60 82.3L34.3 96.2L39.8 67.6L18.6 47.6L47.4 43.8L60 18Z" fill="url(#bbFavStar)"/>
   </g>
 </svg>

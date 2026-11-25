@@ -1,6 +1,6 @@
 /** Application bootstrap: 3-second BraveBank splash screen, brand SVG hydration, navigation, and session lifecycle. */
 
-import { apiRequest } from "./api.js";
+import { apiRequest, ensureCsrfToken } from "./api.js";
 import { initAuthFlow } from "./auth.js";
 import { renderPayments } from "./bills.js";
 import { renderCards } from "./cards.js";
@@ -144,6 +144,9 @@ async function enterAuthenticatedShell() {
   if (!appState.user) {
     appState.user = await apiRequest("/api/auth/me");
   }
+  if (!appState.accessToken && !appState.csrfToken) {
+    await ensureCsrfToken();
+  }
   updateUserChrome();
   authShell.classList.add("hidden");
   appShell.classList.remove("hidden");
@@ -161,7 +164,11 @@ function exitToAuthShell(screen = "welcome") {
 
 async function performLogout() {
   try {
-    await apiRequest("/api/auth/logout", { method: "POST" }, false);
+    await apiRequest(
+      "/api/auth/logout",
+      { method: "POST", suppressSessionExpired: true },
+      true
+    );
   } catch {
     // Ensure local state resets cleanly even if session already expired
   }

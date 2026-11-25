@@ -474,3 +474,89 @@ def test_legacy_6_digit_pin_upgrade_and_otp_pin_reset(client, db_session):
         headers=customer["headers"],
     )
     assert wdr.status_code == 201
+
+
+def test_cross_origin_csrf_bootstrap_refresh_rotation_and_expired_session(client, db_session):
+    from backend.app.models.user import LoginSession
+    from backend.app.security.jwt import create_access_token
+
+    customer = register_and_verify_user(client, phone_number="08081112222", password="CrossOrigin#1")
+    https_base = "https://testserver"
+
+    # 1. HTTPS login returns matching csrf_token and sets Partitioned cookies
+    login_res = client.post(
+        f"{https_base}/api/auth/login",
+        json={"phone_number": "08081112222", "password": "CrossOrigin#1"},
+        headers={"X-Forwarded-Proto": "https", "Origin": "https://bravebank-frontend.onrender.com"},
+    )
+    assert login_res.status_code == 200
+    login_data = login_res.json()
+    assert login_data["csrf_token"]
+    assert login_data["csrf_token"] == client.cookies.get("bb_csrf_token")
+    assert login_res.headers.get("access-control-allow-origin") == "https://bravebank-frontend.onrender.com"
+    assert login_res.headers.get("access-control-allow-credentials") == "true"
+
+    # 2. Cross-origin CSRF bootstrap returns the exact token matching the cookie
+    csrf_res = client.get(
+        f"{https_base}/api/auth/csrf",
+        headers={"X-Forwarded-Proto": "https", "Origin": "https://bravebank-frontend.onrender.com"},
+    )
+    assert csrf_res.status_code == 200
+    csrf_token = csrf_res.json()["csrf_token"]
+    assert csrf_token == client.cookies.get("bb_csrf_token")
+
+    # Mismatched CSRF fails (403); matching X-CSRF-Token succeeds (201)
+    bad_csrf = client.post(
+        f"{https_base}/api/accounts/deposit",
+        json={"amount": "2000.00"},
+        headers={"X-CSRF-Token": "wrong-token", "Origin": "https://bravebank-frontend.onrender.com"},
+    )
+    assert bad_csrf.status_code == 403
+
+    good_csrf = client.post(
+        f"{https_base}/api/accounts/deposit",
+        json={"amount": "2000.00"},
+        headers={"X-CSRF-Token": csrf_token, "Origin": "https://bravebank-frontend.onrender.com"},
+    )
+    assert good_csrf.status_code == 201
+
+    # 3. Refresh via HttpOnly cookie rotates tokens and revokes the previous refresh token
+    old_refresh = client.cookies.get("bb_refresh_token")
+    assert old_refresh
+    refresh_res = client.post(
+        f"{https_base}/api/auth/refresh",
+        json={},
+        headers={"X-Forwarded-Proto": "https", "Origin": "https://bravebank-frontend.onrender.com"},
+    )
+    assert refresh_res.status_code == 200
+    refresh_data = refresh_res.json()
+    assert refresh_data["access_token"] != login_data["access_token"]
+    assert refresh_data["refresh_token"] != old_refresh
+    assert refresh_data["csrf_token"] == client.cookies.get("bb_csrf_token")
+
+    # Replaying old refresh token is rejected (401)
+    replay_res = client.post(f"{https_base}/api/auth/refresh", json={"refresh_token": old_refresh})
+    assert replay_res.status_code == 401
+
+    # 4. Expired session in DB rejects access token and refresh
+    active_sessions = db_session.scalars(
+        select(LoginSession).where(
+            LoginSession.user_id == customer["user"]["id"],
+            LoginSession.revoked_at.is_(None),
+        )
+    ).all()
+    assert len(active_sessions) >= 1
+    expired_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    for sess in active_sessions:
+        sess.expires_at = expired_at
+    db_session.commit()
+
+    expired_access = create_access_token(customer["user"]["id"], active_sessions[-1].id)
+    assert (
+        client.get(
+            f"{https_base}/api/auth/me", headers={"Authorization": f"Bearer {expired_access}"}
+        ).status_code
+        == 401
+    )
+    assert client.post(f"{https_base}/api/auth/refresh", json={}).status_code == 401
+

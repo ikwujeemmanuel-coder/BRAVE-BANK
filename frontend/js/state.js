@@ -3,6 +3,7 @@
 export const appState = {
   user: null,
   accessToken: null,
+  csrfToken: null,
   dashboard: null,
   banks: [],
   billProviders: null,
@@ -14,6 +15,7 @@ export const appState = {
 export function clearAuthState() {
   appState.user = null;
   appState.accessToken = null;
+  appState.csrfToken = null;
   appState.dashboard = null;
   appState.banks = [];
   appState.billProviders = null;

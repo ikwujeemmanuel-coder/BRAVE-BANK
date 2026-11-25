@@ -188,6 +188,7 @@ class AuthTokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     expires_in: int
+    csrf_token: Optional[str] = None
     user: UserProfileResponse
 
 

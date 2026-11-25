@@ -122,7 +122,7 @@ def _set_session_cookies(
     request: Request,
     access_token: str,
     refresh_token: str,
-) -> None:
+) -> str:
     settings = get_settings()
     is_https = _is_https_request(request)
     samesite_mode = "none" if is_https else "lax"
@@ -157,6 +157,7 @@ def _set_session_cookies(
     )
     if is_https:
         _append_partitioned_to_set_cookie_headers(response)
+    return csrf_token
 
 
 def _clear_session_cookies(response: Response, request: Request) -> None:
@@ -187,11 +188,12 @@ def _issue_session_tokens(
     db.flush()
 
     access_token = create_access_token(user.id, session_id)
-    _set_session_cookies(response, request, access_token, refresh_token)
+    csrf_token = _set_session_cookies(response, request, access_token, refresh_token)
     return AuthTokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.access_token_expire_minutes * 60,
+        csrf_token=csrf_token,
         user=_build_profile(db, user),
     )
 
@@ -728,6 +730,27 @@ def logout(
     db.commit()
     _clear_session_cookies(response, request)
     return {"message": "Signed out successfully."}
+
+
+@router.get("/csrf")
+def get_csrf_token(request: Request, response: Response):
+    """Issue or echo the double-submit CSRF token for cross-origin cookie-authenticated clients."""
+    settings = get_settings()
+    is_https = _is_https_request(request)
+    samesite_mode = "none" if is_https else "lax"
+    csrf_token = request.cookies.get(CSRF_COOKIE_NAME) or secrets.token_urlsafe(32)
+    response.set_cookie(
+        key=CSRF_COOKIE_NAME,
+        value=csrf_token,
+        httponly=False,
+        secure=is_https,
+        samesite=samesite_mode,
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/",
+    )
+    if is_https:
+        _append_partitioned_to_set_cookie_headers(response)
+    return {"csrf_token": csrf_token}
 
 
 @router.get("/me", response_model=UserProfileResponse)
