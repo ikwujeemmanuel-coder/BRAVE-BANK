@@ -99,7 +99,7 @@ BRAVE-BANK/
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-3. Copy `.env.example` to `.env` and set `DATABASE_URL`, `TEST_DATABASE_URL`, and `SECRET_KEY`.
+3. Copy `.env.example` to `.env` and set `DATABASE_URL`, `DIRECT_URL`, `TEST_DATABASE_URL`, and `SECRET_KEY`.
 4. Run Alembic database migrations:
    ```bash
    alembic -c backend/alembic.ini upgrade head
@@ -120,6 +120,7 @@ BRAVE-BANK/
 3. On Render, choose **New + -> Blueprint** and select the repository (`render.yaml` is preconfigured for Python `3.13.2`, Frankfurt region, and `/api/health` checks).
 4. Provide the prompted secret environment variables in Render:
    - `DATABASE_URL`: Neon PostgreSQL connection string (`postgresql://...`)
+   - `DIRECT_URL`: Neon direct (non-pooler) PostgreSQL connection string required by Alembic migrations
    - `EMAIL_PROVIDER`: `smtp`
    - `SMTP_HOST`, `SMTP_PORT` (`587`), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (required for sending 6-digit registration Email OTPs in production)
    - `FRONTEND_URL`: `https://bravebank-frontend.onrender.com`

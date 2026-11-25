@@ -51,20 +51,41 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "X-CSRF-Token", "X-Requested-With"],
     )
 
+    def _cors_headers(request: Request) -> dict[str, str]:
+        origin = request.headers.get("origin")
+        if origin and origin in settings.cors_origins:
+            return {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Vary": "Origin",
+            }
+        return {}
+
     @app.exception_handler(DatabaseConfigurationError)
     async def database_config_exception_handler(
-        _request: Request, exc: DatabaseConfigurationError
+        request: Request, exc: DatabaseConfigurationError
     ):
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"detail": str(exc)},
+            headers=_cors_headers(request),
         )
 
     @app.exception_handler(EmailDeliveryError)
-    async def email_delivery_exception_handler(_request: Request, exc: EmailDeliveryError):
+    async def email_delivery_exception_handler(request: Request, exc: EmailDeliveryError):
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"detail": str(exc)},
+            headers=_cors_headers(request),
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        logger.exception("Unhandled BraveBank API error: %s", exc)
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": "An unexpected server error occurred. Please try again."},
+            headers=_cors_headers(request),
         )
 
     app.include_router(health.router)

@@ -26,6 +26,8 @@ services:
         value: "7"
       - key: DATABASE_URL
         sync: false
+      - key: DIRECT_URL
+        sync: false
       - key: EMAIL_PROVIDER
         value: smtp
       - key: SMTP_HOST

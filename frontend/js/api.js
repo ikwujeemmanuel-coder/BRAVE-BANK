@@ -167,8 +167,34 @@ async function parseResponsePayload(response) {
   }
 }
 
-export async function apiRequest(path, options = {}, retryOn401 = true) {
-  const { suppressSessionExpired = false, headers: customHeaders = {}, ...fetchOptions } = options;
+const DEFAULT_REQUEST_TIMEOUT_MS = 45000;
+
+async function fetchWithTimeout(url, options, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+  if (typeof AbortController === "undefined" || options.signal) {
+    return fetch(url, options);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function apiRequest(
+  path,
+  options = {},
+  retryOn401 = true,
+  retryOnNetwork = true,
+  retryOnCsrf = true
+) {
+  const {
+    suppressSessionExpired = false,
+    headers: customHeaders = {},
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    ...fetchOptions
+  } = options;
   const method = (fetchOptions.method || "GET").toUpperCase();
   const url = buildApiUrl(path);
 
@@ -217,15 +243,26 @@ export async function apiRequest(path, options = {}, retryOn401 = true) {
 
   let response;
   try {
-    response = await fetch(url, {
-      ...fetchOptions,
-      method,
-      credentials: "include",
-      headers,
-    });
+    response = await fetchWithTimeout(
+      url,
+      {
+        ...fetchOptions,
+        method,
+        credentials: "include",
+        headers,
+      },
+      timeoutMs
+    );
   } catch (networkErr) {
+    if (retryOnNetwork && SAFE_METHODS.has(method)) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+      return apiRequest(path, options, retryOn401, false, retryOnCsrf);
+    }
+    const isTimeout = networkErr && networkErr.name === "AbortError";
     const err = new Error(
-      "Unable to reach BraveBank server. Check your internet connection or cross-origin settings."
+      isTimeout
+        ? "BraveBank server took too long to respond. If the server was waking up, please try again."
+        : "Unable to reach BraveBank server. Check your internet connection or cross-origin settings."
     );
     err.status = 0;
     err.cause = networkErr;
@@ -235,7 +272,7 @@ export async function apiRequest(path, options = {}, retryOn401 = true) {
   if (response.status === 401 && retryOn401 && !isRefreshExcludedPath(path)) {
     const refreshed = await attemptCookieRefresh();
     if (refreshed) {
-      return apiRequest(path, options, false);
+      return apiRequest(path, options, false, false, retryOnCsrf);
     }
     if (appState.user || appState.accessToken) {
       clearAuthState();
@@ -246,6 +283,20 @@ export async function apiRequest(path, options = {}, retryOn401 = true) {
   }
 
   const data = await parseResponsePayload(response);
+
+  if (
+    response.status === 403 &&
+    retryOnCsrf &&
+    !SAFE_METHODS.has(method) &&
+    !headers.Authorization &&
+    String(data.detail || "").toLowerCase().includes("csrf")
+  ) {
+    const freshCsrf = await ensureCsrfToken(true);
+    if (freshCsrf) {
+      return apiRequest(path, options, retryOn401, false, false);
+    }
+  }
+
   if (!response.ok) {
     const detail = Array.isArray(data.detail)
       ? data.detail.map((item) => item.msg || String(item)).join("; ")

@@ -43,6 +43,7 @@ class Account(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Numeric(18, 2), default=Decimal("0.00"), nullable=False
     )
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    demo_funded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     user: Mapped["User"] = relationship(back_populates="accounts")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="account")

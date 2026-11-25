@@ -24,6 +24,7 @@ class AccountOut(BaseModel):
     available_balance: Decimal
     ledger_balance: Decimal
     status: str
+    demo_funded: bool = False
     created_at: datetime
 
 

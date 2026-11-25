@@ -110,7 +110,7 @@ def test_multi_customer_isolation_and_persistence_across_restart(client, db_sess
     assert client.get("/api/cards", headers=bob["headers"]).json() == []
     assert client.post(f"/api/cards/{card_a['id']}/toggle-freeze", headers=bob["headers"]).status_code == 404
     assert client.delete(f"/api/transfers/beneficiaries/{ben_a['id']}", headers=bob["headers"]).status_code == 404
-    assert Decimal(client.get("/api/accounts/me", headers=bob["headers"]).json()["available_balance"]) == Decimal("0.00")
+    assert Decimal(client.get("/api/accounts/me", headers=bob["headers"]).json()["available_balance"]) == Decimal("500000.00")
 
     # Logout Customer A, rebuild fresh FastAPI app instance (simulating restart), log back in
     assert client.post("/api/auth/logout", headers=alice["headers"]).status_code == 200
@@ -126,7 +126,7 @@ def test_multi_customer_isolation_and_persistence_across_restart(client, db_sess
         fresh_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
         dash = fresh_client.get("/api/accounts/dashboard", headers=fresh_headers).json()
         assert dash["account"]["account_number"] == alice["account_number"]
-        assert Decimal(dash["account"]["available_balance"]) == Decimal("60000.00")
+        assert Decimal(dash["account"]["available_balance"]) == Decimal("560000.00")
         assert Decimal(dash["savings_summary"]["balance"]) == Decimal("15000.00")
         assert dash["secondary_currency"]["currency"] == "USD"
         assert dash["secondary_currency"]["enabled"] is False
@@ -145,6 +145,7 @@ def test_render_blueprint_and_external_url_cors_support(monkeypatch):
     assert "alembic -c backend/alembic.ini upgrade head" in svc["startCommand"]
     assert "--proxy-headers" in svc["startCommand"]
     env_keys = {item["key"]: item for item in svc["envVars"]}
+    assert "DATABASE_URL" in env_keys and "DIRECT_URL" in env_keys
     assert env_keys["EMAIL_PROVIDER"]["value"] == "smtp"
     assert "SMTP_HOST" in env_keys and "SMTP_PASSWORD" in env_keys
 
@@ -189,5 +190,34 @@ def test_render_blueprint_and_external_url_cors_support(monkeypatch):
         monkeypatch.delenv("RENDER_EXTERNAL_URL", raising=False)
         monkeypatch.delenv("ALLOWED_ORIGINS", raising=False)
         get_settings.cache_clear()
+
+
+def test_unhandled_exception_preserves_cors_headers():
+    test_app = create_app()
+
+    class _BoomDB:
+        def scalar(self, *_args, **_kwargs):
+            raise RuntimeError("Simulated crash")
+
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("Simulated crash")
+
+    def _broken_db():
+        yield _BoomDB()
+
+    test_app.dependency_overrides[get_db] = _broken_db
+    with TestClient(test_app, raise_server_exceptions=False) as tc:
+        res = tc.post(
+            "/api/auth/login",
+            json={"phone_number": "08012345678", "password": "Password1!"},
+            headers={"Origin": "https://bravebank-frontend.onrender.com"},
+        )
+        assert res.status_code == 500
+        assert res.json()["detail"] == "An unexpected server error occurred. Please try again."
+        assert (
+            res.headers.get("access-control-allow-origin")
+            == "https://bravebank-frontend.onrender.com"
+        )
+
 
 

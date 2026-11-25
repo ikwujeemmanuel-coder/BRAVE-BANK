@@ -25,7 +25,7 @@ from backend.app.schemas.banking import (
     SavingsGoalCreateRequest,
     VirtualCardCreateRequest,
 )
-from backend.app.security.dependencies import get_current_user
+from backend.app.security.dependencies import get_client_ip, get_current_user
 from backend.app.services.accounts import generate_unique_savings_number
 from backend.app.services.audit import create_notification, log_audit
 from backend.app.services.ledger import execute_debit, quantize_ngn
@@ -172,7 +172,7 @@ def contribute_to_savings_goal(
         counterparty_name=goal.title,
         counterparty_account=savings.account_number,
         counterparty_bank="BRAVEBANK Savings Vault",
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         audit_action="savings.contribute",
         notification_title="Savings Contribution Posted",
     )
@@ -366,7 +366,7 @@ def pay_bill(
         counterparty_account=payload.customer_reference,
         counterparty_bank="Nigeria Billers (Simulated)",
         idempotency_key=payload.idempotency_key,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         metadata={"simulated": True, "bill_category": payload.category, "provider": payload.provider},
         audit_action="bill.paid",
         notification_title="Bill Payment Successful",

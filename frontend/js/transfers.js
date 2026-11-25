@@ -281,8 +281,12 @@ export async function renderWithdraw(root, navigate) {
   });
 }
 
+const EXTERNAL_TRANSFER_UNAVAILABLE_MSG =
+  "External bank transfers are currently unavailable. BraveBank cannot transfer real funds to other banks in this demo environment.";
+
 export async function renderTransfers(root, navigate) {
-  const [banks, beneficiaries] = await Promise.all([
+  const [acct, banks, beneficiaries] = await Promise.all([
+    apiRequest("/api/accounts/me"),
     apiRequest("/api/transfers/banks"),
     apiRequest("/api/transfers/beneficiaries"),
   ]);
@@ -300,14 +304,14 @@ export async function renderTransfers(root, navigate) {
       <div class="hero-badge-center">
         <div class="blue-circle-badge">${icon("send", 24)}</div>
         <h3>Send Money</h3>
-        <p>Fast. Safe. Reliable.</p>
+        <p>Available Balance: <strong>${formatNGN(acct.available_balance)}</strong> &middot; Demo Simulated Funds</p>
       </div>
 
       <form id="unified-transfer-form" class="form-stack">
         <label class="field">
           <span>Recipient Account</span>
           <div class="account-picker-wrap">
-            <input id="tr-account" type="text" required placeholder="Enter account number (or BraveBank phone)" />
+            <input id="tr-account" type="text" required placeholder="Enter 10-digit account number or BraveBank phone" />
             <button id="open-ben-picker-btn" type="button" class="picker-icon-btn" title="Choose saved beneficiary" aria-label="Choose saved beneficiary">
               ${icon("bookUser", 20)}
             </button>
@@ -322,6 +326,10 @@ export async function renderTransfers(root, navigate) {
             ${banks.map((b) => `<option value="${escapeHtml(b.code)}">${escapeHtml(b.name)}</option>`).join("")}
           </select>
         </label>
+
+        <div id="tr-external-notice" class="dev-otp-box hidden">
+          External bank transfers are disabled in this demo environment. Select <strong>BraveBank (Instant Internal)</strong> to transfer simulated funds between BraveBank users.
+        </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
           <div id="tr-resolved-box" class="verified-recipient-pill hidden" style="flex:1;"></div>
@@ -390,6 +398,17 @@ export async function renderTransfers(root, navigate) {
   const acctInput = document.getElementById("tr-account");
   const bankSelect = document.getElementById("tr-bank");
   const resolvedBox = document.getElementById("tr-resolved-box");
+  const externalNotice = document.getElementById("tr-external-notice");
+
+  function syncExternalBankNotice() {
+    const isExternal = Boolean(bankSelect.value && bankSelect.value !== "BRAVE");
+    externalNotice.classList.toggle("hidden", !isExternal);
+  }
+
+  function showExternalTransferUnavailable() {
+    showToast(EXTERNAL_TRANSFER_UNAVAILABLE_MSG, "error");
+    openTransactionFailureModal("External Transfer Unavailable", EXTERNAL_TRANSFER_UNAVAILABLE_MSG);
+  }
 
   async function resolveRecipient(silent = false) {
     const query = acctInput.value.trim();
@@ -399,32 +418,24 @@ export async function renderTransfers(root, navigate) {
       return null;
     }
 
-    try {
-      if (bankCode === "BRAVE") {
-        const data = await apiRequest(`/api/transfers/lookup-internal?query=${encodeURIComponent(query)}`);
-        resolvedRecipient = {
-          is_internal: true,
-          account_number: data.account_number,
-          account_name: data.account_name,
-          bank_code: "000",
-          bank_name: "BRAVEBANK",
-        };
-      } else {
-        if (!/^\d{10}$/.test(query)) {
-          throw new Error("External bank transfers require a 10-digit NUBAN account number.");
-        }
-        const data = await apiRequest("/api/transfers/external/resolve", {
-          method: "POST",
-          body: JSON.stringify({ bank_code: bankCode, account_number: query }),
-        });
-        resolvedRecipient = {
-          is_internal: false,
-          account_number: data.account_number,
-          account_name: data.account_name,
-          bank_code: data.bank_code,
-          bank_name: data.bank_name,
-        };
+    if (bankCode !== "BRAVE") {
+      resolvedRecipient = null;
+      resolvedBox.classList.add("hidden");
+      if (!silent) {
+        showExternalTransferUnavailable();
       }
+      return null;
+    }
+
+    try {
+      const data = await apiRequest(`/api/transfers/lookup-internal?query=${encodeURIComponent(query)}`);
+      resolvedRecipient = {
+        is_internal: true,
+        account_number: data.account_number,
+        account_name: data.account_name,
+        bank_code: "000",
+        bank_name: "BRAVEBANK",
+      };
       resolvedBox.innerHTML = `${icon("check", 16)} <span>${escapeHtml(resolvedRecipient.account_name)} &middot; ${escapeHtml(resolvedRecipient.bank_name)}</span>`;
       resolvedBox.classList.remove("hidden");
       return resolvedRecipient;
@@ -439,8 +450,14 @@ export async function renderTransfers(root, navigate) {
   function applyBeneficiary(b) {
     acctInput.value = b.account_number;
     bankSelect.value = b.is_internal ? "BRAVE" : b.bank_code;
+    syncExternalBankNotice();
+    if (!b.is_internal) {
+      resolvedRecipient = null;
+      resolvedBox.classList.add("hidden");
+      return;
+    }
     resolvedRecipient = {
-      is_internal: b.is_internal,
+      is_internal: true,
       account_number: b.account_number,
       account_name: b.account_name,
       bank_code: b.bank_code,
@@ -457,7 +474,7 @@ export async function renderTransfers(root, navigate) {
     resolvedRecipient = null;
     resolvedBox.classList.add("hidden");
     const digits = acctInput.value.trim();
-    if (digits.length === 10 && /^\d{10}$/.test(digits) && bankSelect.value) {
+    if (digits.length === 10 && /^\d{10}$/.test(digits) && bankSelect.value === "BRAVE") {
       resolveRecipient(true);
     }
   });
@@ -465,7 +482,8 @@ export async function renderTransfers(root, navigate) {
   bankSelect.addEventListener("change", () => {
     resolvedRecipient = null;
     resolvedBox.classList.add("hidden");
-    if (acctInput.value.trim().length >= 10 && bankSelect.value) {
+    syncExternalBankNotice();
+    if (acctInput.value.trim().length >= 10 && bankSelect.value === "BRAVE") {
       resolveRecipient(true);
     }
   });
@@ -529,6 +547,10 @@ export async function renderTransfers(root, navigate) {
 
   document.getElementById("unified-transfer-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (bankSelect.value && bankSelect.value !== "BRAVE") {
+      showExternalTransferUnavailable();
+      return;
+    }
     if (!resolvedRecipient) {
       const resolved = await resolveRecipient(false);
       if (!resolved) return;
@@ -546,30 +568,15 @@ export async function renderTransfers(root, navigate) {
       narration,
       onConfirmWithPin: async (pin) => {
         try {
-          const endpoint = resolvedRecipient.is_internal
-            ? "/api/transfers/internal"
-            : "/api/transfers/external";
-          const bodyPayload = resolvedRecipient.is_internal
-            ? {
-                recipient_account_number: resolvedRecipient.account_number,
-                amount,
-                pin,
-                narration,
-                idempotency_key: newIdempotencyKey("int"),
-              }
-            : {
-                bank_code: resolvedRecipient.bank_code,
-                account_number: resolvedRecipient.account_number,
-                account_name: resolvedRecipient.account_name,
-                amount,
-                pin,
-                narration,
-                idempotency_key: newIdempotencyKey("ext"),
-              };
-
-          const tx = await apiRequest(endpoint, {
+          const tx = await apiRequest("/api/transfers/internal", {
             method: "POST",
-            body: JSON.stringify(bodyPayload),
+            body: JSON.stringify({
+              recipient_account_number: resolvedRecipient.account_number,
+              amount,
+              pin,
+              narration,
+              idempotency_key: newIdempotencyKey("int"),
+            }),
           });
 
           if (saveBen) {
@@ -581,13 +588,13 @@ export async function renderTransfers(root, navigate) {
                 account_name: resolvedRecipient.account_name,
                 bank_code: resolvedRecipient.bank_code,
                 bank_name: resolvedRecipient.bank_name,
-                is_internal: resolvedRecipient.is_internal,
+                is_internal: true,
               }),
             }).catch(() => {});
           }
 
           closeModal();
-          openReceiptModal(tx);
+          openReceiptModal(tx, [], { celebrateInternalTransfer: true });
           await renderTransfers(root, navigate);
         } catch (err) {
           openTransactionFailureModal("Transfer Failed", err.message);

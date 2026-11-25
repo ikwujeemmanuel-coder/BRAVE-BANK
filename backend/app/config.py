@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     otp_max_attempts: int = Field(default=5, alias="OTP_MAX_ATTEMPTS")
 
     allowed_origins: str = Field(
-        default="http://localhost:3000,http://127.0.0.1:3000,https://bravebank-frontend.onrender.com",
+        default="http://localhost:3000,http://127.0.0.1:3000,https://bravebank-frontend.onrender.com,https://brave-bank.onrender.com",
         alias="ALLOWED_ORIGINS",
     )
     frontend_url: Optional[str] = Field(

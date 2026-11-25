@@ -1,6 +1,7 @@
 /** Main BraveBank Dashboard and Account Details screens matching the official visual mockup. */
 
 import { apiRequest } from "./api.js";
+import { isSoundMuted, toggleSoundMuted } from "./effects.js";
 import { icon } from "./icons.js";
 import { brandStarSvg } from "./logo.js";
 import { appState, escapeHtml, formatNGN } from "./state.js";
@@ -27,6 +28,9 @@ export async function renderDashboard(root, navigate, refreshChrome) {
         <p class="dash-welcome-sub">Welcome back to BraveBank</p>
       </div>
       <div class="dash-header-icons">
+        <button id="dash-sound-btn" type="button" class="circle-icon-btn ${isSoundMuted() ? "is-muted" : ""}" aria-label="${isSoundMuted() ? "Unmute transaction sounds" : "Mute transaction sounds"}" title="${isSoundMuted() ? "Sounds Muted" : "Sounds On"}">
+          ${isSoundMuted() ? icon("volumeX", 18) : icon("volume2", 18)}
+        </button>
         <button id="dash-notif-btn" type="button" class="circle-icon-btn notif-btn" aria-label="Notifications">
           ${icon("bell", 19)}
           ${unread > 0 ? `<span class="notif-count-pill">${unread > 99 ? "99+" : unread}</span>` : ""}
@@ -55,6 +59,9 @@ export async function renderDashboard(root, navigate, refreshChrome) {
 
       <div id="dash-balance-text" class="hero-balance-figure">
         ${appState.hideBalance ? "&#8358; ••••••••" : formatNGN(dash.account.available_balance)}
+      </div>
+      <div style="font-size:0.74rem; color:rgba(255,255,255,0.86); font-weight:600; margin-top:4px; position:relative; z-index:1;">
+        Demo Account &middot; Simulated Funds
       </div>
 
       <div class="hero-add-money-wrap">
@@ -169,6 +176,16 @@ export async function renderDashboard(root, navigate, refreshChrome) {
 
   wireTransactionClicks(root);
 
+  const dashSoundBtn = document.getElementById("dash-sound-btn");
+  if (dashSoundBtn) {
+    dashSoundBtn.addEventListener("click", () => {
+      const muted = toggleSoundMuted();
+      dashSoundBtn.innerHTML = muted ? icon("volumeX", 18) : icon("volume2", 18);
+      dashSoundBtn.classList.toggle("is-muted", muted);
+      dashSoundBtn.setAttribute("aria-label", muted ? "Unmute transaction sounds" : "Mute transaction sounds");
+      showToast(muted ? "Transaction sounds muted." : "Transaction sounds enabled.", "info");
+    });
+  }
   document.getElementById("dash-notif-btn").addEventListener("click", () => navigate("notifications"));
   document.getElementById("dash-profile-btn").addEventListener("click", () => navigate("profile"));
 
@@ -227,6 +244,7 @@ export async function renderAccountDetails(root, navigate) {
         <div class="summary-kv-row"><span class="summary-kv-left">BraveBank Account Number</span><strong class="summary-kv-val">${escapeHtml(acct.account_number)}</strong></div>
         <div class="summary-kv-row"><span class="summary-kv-left">Account Holder</span><strong class="summary-kv-val">${escapeHtml(acct.account_name)}</strong></div>
         <div class="summary-kv-row"><span class="summary-kv-left">Primary Currency</span><strong class="summary-kv-val">NGN (&#8358;)</strong></div>
+        <div class="summary-kv-row"><span class="summary-kv-left">Account Type</span><strong class="summary-kv-val">Demo Account (Simulated Funds)</strong></div>
         <div class="summary-kv-row"><span class="summary-kv-left">Available Balance</span><strong class="summary-kv-val">${formatNGN(acct.available_balance)}</strong></div>
         <div class="summary-kv-row"><span class="summary-kv-left">Ledger Balance</span><strong class="summary-kv-val">${formatNGN(acct.ledger_balance)}</strong></div>
       </div>

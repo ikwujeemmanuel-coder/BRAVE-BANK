@@ -19,14 +19,14 @@ target_metadata = Base.metadata
 
 def get_database_url() -> str:
     settings = get_settings()
-    
+
     if not settings.direct_url:
         raise RuntimeError(
             "DIRECT_URL is not configured. "
             "Alembic migrations require a direct PostgreSQL connection."
         )
-        
-    return normalize_postgres_url(settings.database_url)
+
+    return normalize_postgres_url(settings.direct_url)
 
 
 def run_migrations_offline() -> None:

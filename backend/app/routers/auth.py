@@ -64,6 +64,7 @@ from backend.app.services.accounts import (
     generate_unique_savings_number,
 )
 from backend.app.services.audit import create_notification, log_audit
+from backend.app.services.ledger import credit_initial_demo_balance
 from backend.app.services.otp import (
     issue_email_otp,
     issue_otp,
@@ -432,18 +433,20 @@ def complete_registration_set_pin(
     )
     if existing_account is None:
         account_number = generate_unique_account_number(db)
-        db.add(
-            Account(
-                user_id=user.id,
-                account_number=account_number,
-                account_name=f"{user.first_name} {user.surname}".upper(),
-                currency="NGN",
-                available_balance=Decimal("0.00"),
-                ledger_balance=Decimal("0.00"),
-                status="active",
-            )
+        primary_account = Account(
+            user_id=user.id,
+            account_number=account_number,
+            account_name=f"{user.first_name} {user.surname}".upper(),
+            currency="NGN",
+            available_balance=Decimal("0.00"),
+            ledger_balance=Decimal("0.00"),
+            status="active",
+            demo_funded=False,
         )
+        db.add(primary_account)
+        db.flush()
     else:
+        primary_account = existing_account
         account_number = existing_account.account_number
 
     existing_savings = db.scalar(select(SavingsAccount).where(SavingsAccount.user_id == user.id))
@@ -464,6 +467,13 @@ def complete_registration_set_pin(
         "account",
         "Welcome to BRAVEBANK",
         f"Your BraveBank NGN account {account_number} is active and ready. Banking Without Limits!",
+    )
+    credit_initial_demo_balance(
+        db,
+        user,
+        primary_account,
+        ip_address=get_client_ip(request),
+        commit=False,
     )
     tokens = _issue_session_tokens(db, user, request, response)
     log_audit(
@@ -601,7 +611,7 @@ def verify_phone_otp(
         resource_type="user",
         user_id=user.id,
         resource_id=str(user.id),
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     db.commit()
     return tokens
@@ -667,7 +677,7 @@ def login(
         action="user.login",
         resource_type="session",
         user_id=user.id,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     db.commit()
     return tokens

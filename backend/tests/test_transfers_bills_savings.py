@@ -8,11 +8,15 @@ from backend.app.models.services import SavingsContribution
 from backend.tests.conftest import register_and_verify_user
 
 
-def test_beneficiaries_and_external_transfer(client):
+def test_beneficiaries_and_external_transfer(client, db_session):
+    from backend.app.models.banking import Transaction
+
     user = register_and_verify_user(client, phone_number="08044440001", pin="1357")
     headers = user["headers"]
 
     client.post("/api/accounts/deposit", json={"amount": "60000.00"}, headers=headers)
+    bal_before = Decimal(client.get("/api/accounts/me", headers=headers).json()["available_balance"])
+    assert bal_before == Decimal("560000.00")
 
     banks = client.get("/api/transfers/banks", headers=headers).json()
     assert len(banks) >= 5
@@ -52,7 +56,18 @@ def test_beneficiaries_and_external_transfer(client):
         },
         headers=headers,
     )
-    assert ext.status_code == 201
+    assert ext.status_code == 400
+    assert ext.json()["detail"] == (
+        "External bank transfers are currently unavailable. "
+        "BraveBank cannot transfer real funds to other banks in this demo environment."
+    )
+
+    bal_after = Decimal(client.get("/api/accounts/me", headers=headers).json()["available_balance"])
+    assert bal_after == bal_before
+    ext_txs = db_session.scalars(
+        select(Transaction).where(Transaction.category == "external_transfer")
+    ).all()
+    assert ext_txs == []
 
     bens = client.get("/api/transfers/beneficiaries", headers=headers).json()
     assert len(bens) == 1

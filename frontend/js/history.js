@@ -24,6 +24,7 @@ export async function renderHistory(root, navigate) {
         <input id="tx-search" type="text" placeholder="Search reference, narration, or recipient..." />
         <select id="tx-category">
           <option value="">All Categories</option>
+          <option value="demo_funding">Demo Funding</option>
           <option value="deposit">Deposit</option>
           <option value="withdrawal">Withdrawal</option>
           <option value="internal_transfer">Internal Transfer</option>

@@ -13,7 +13,7 @@ from backend.app.models.services import SavingsAccount, SavingsGoal
 from backend.app.models.support import Notification
 from backend.app.models.user import User
 from backend.app.schemas.banking import AccountOut, DepositRequest, TransactionOut, WithdrawRequest
-from backend.app.security.dependencies import get_current_user
+from backend.app.security.dependencies import get_client_ip, get_current_user
 from backend.app.services.ledger import execute_debit, execute_deposit
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
@@ -147,7 +147,7 @@ def deposit_funds(
         amount=payload.amount,
         narration=payload.narration.strip() or "Simulated NGN Deposit",
         idempotency_key=payload.idempotency_key,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     return TransactionOut.model_validate(tx, from_attributes=True)
 
@@ -172,7 +172,7 @@ def withdraw_funds(
         counterparty_account=account.account_number,
         counterparty_bank="BRAVEBANK Cash Out (Simulated)",
         idempotency_key=payload.idempotency_key,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
         audit_action="account.withdraw",
         notification_title="Withdrawal Completed",
     )

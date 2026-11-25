@@ -1,5 +1,6 @@
 /** Reusable BraveBank UI helpers: toasts, loading states, Transfer Review, Transaction Success/Failure, and Terms modal. */
 
+import { triggerTransferSuccessCelebration } from "./effects.js";
 import { icon } from "./icons.js";
 import { escapeHtml, formatDateTime, formatNGN } from "./state.js";
 
@@ -171,6 +172,7 @@ export function openTransferReviewModal({
 }
 
 function headingForTx(tx) {
+  if (tx.category === "demo_funding") return "Demo Balance Credited!";
   if (tx.category === "deposit") return "Deposit Successful!";
   if (tx.category === "withdrawal") return "Withdrawal Successful!";
   if (tx.category === "bill_payment") return "Payment Successful!";
@@ -180,6 +182,7 @@ function headingForTx(tx) {
 
 function summaryLineForTx(tx) {
   const amt = formatNGN(tx.amount);
+  if (tx.category === "demo_funding") return `Your account was initialized with ${amt} in simulated demo funds.`;
   if (tx.category === "deposit") return `Your deposit of ${amt} was successful.`;
   if (tx.category === "withdrawal") return `Your withdrawal of ${amt} was successful.`;
   if (tx.category === "bill_payment") return `Your bill payment of ${amt} was successful.`;
@@ -270,6 +273,15 @@ export function openReceiptModal(tx, ledgerEntries = [], extraInfo = {}) {
     `,
     "receipt-emerald"
   );
+
+  if (
+    extraInfo.celebrateInternalTransfer === true &&
+    tx &&
+    tx.category === "internal_transfer" &&
+    tx.status === "completed"
+  ) {
+    triggerTransferSuccessCelebration(tx);
+  }
 
   document.getElementById("receipt-done-btn").addEventListener("click", closeModal);
   document.getElementById("share-receipt-btn").addEventListener("click", async () => {

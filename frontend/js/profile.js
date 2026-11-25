@@ -1,6 +1,7 @@
 /** Customer Profile, Security & PIN Settings, Active Sessions, and 24/7 Support screens. */
 
 import { apiRequest } from "./api.js";
+import { isSoundMuted, toggleSoundMuted } from "./effects.js";
 import { icon } from "./icons.js";
 import { appState, escapeHtml, formatDateTime } from "./state.js";
 import { showToast } from "./ui.js";
@@ -248,9 +249,30 @@ export async function renderSettings(root, navigate, refreshUser) {
         </table>
       </div>
     </section>
+
+    <section class="card">
+      <div class="section-header" style="margin-bottom:6px;">
+        <div>
+          <h3 style="margin:0;">Audio &amp; Visual Feedback</h3>
+          <p class="muted-copy" style="margin-top:4px;">Control the gentle chime played on confirmed internal BraveBank transfers.</p>
+        </div>
+        <button id="settings-sound-toggle-btn" type="button" class="btn btn-outline-blue btn-pill btn-sm">
+          ${isSoundMuted() ? icon("volumeX", 16) : icon("volume2", 16)}
+          <span>${isSoundMuted() ? "Sounds Muted" : "Sounds Enabled"}</span>
+        </button>
+      </div>
+    </section>
   `;
 
   document.getElementById("sec-back-btn").addEventListener("click", () => navigate("profile"));
+  const settingsSoundBtn = document.getElementById("settings-sound-toggle-btn");
+  if (settingsSoundBtn) {
+    settingsSoundBtn.addEventListener("click", () => {
+      const muted = toggleSoundMuted();
+      settingsSoundBtn.innerHTML = `${muted ? icon("volumeX", 16) : icon("volume2", 16)} <span>${muted ? "Sounds Muted" : "Sounds Enabled"}</span>`;
+      showToast(muted ? "Transaction sounds muted." : "Transaction sounds enabled.", "info");
+    });
+  }
 
   document.getElementById("pin-form").addEventListener("submit", async (e) => {
     e.preventDefault();

@@ -15,12 +15,17 @@ from backend.app.schemas.banking import (
     InternalTransferRequest,
     TransactionOut,
 )
-from backend.app.security.dependencies import get_current_user
+from backend.app.security.dependencies import get_client_ip, get_current_user
 from backend.app.services.accounts import ensure_default_banks, resolve_mock_external_account
-from backend.app.services.ledger import execute_debit, execute_internal_transfer
+from backend.app.services.ledger import execute_internal_transfer
 from backend.app.services.phone import normalize_nigerian_phone
 
 router = APIRouter(prefix="/api/transfers", tags=["transfers"])
+
+EXTERNAL_TRANSFER_UNAVAILABLE_MESSAGE = (
+    "External bank transfers are currently unavailable. "
+    "BraveBank cannot transfer real funds to other banks in this demo environment."
+)
 
 
 def _get_primary_account(db: Session, user: User) -> Account:
@@ -41,14 +46,20 @@ def lookup_internal_recipient(
     cleaned = query.strip()
     recipient_account = None
 
-    if cleaned.isdigit() and len(cleaned) == 10 and cleaned.startswith("30"):
+    if cleaned.isdigit() and len(cleaned) == 10:
         recipient_account = db.scalar(
             select(Account).where(Account.account_number == cleaned)
         )
-    else:
+
+    if recipient_account is None:
         try:
             normalized_phone = normalize_nigerian_phone(cleaned)
         except ValueError as exc:
+            if cleaned.isdigit() and len(cleaned) == 10:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No BraveBank recipient matched that phone or account number.",
+                ) from exc
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Enter a valid 10-digit BraveBank account number or Nigerian phone number.",
@@ -75,10 +86,22 @@ def lookup_internal_recipient(
             detail="This is your own BraveBank account.",
         )
 
+    recipient_user = db.get(User, recipient_account.user_id)
+    if (
+        recipient_account.status != "active"
+        or recipient_user is None
+        or not recipient_user.is_active
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Recipient account is inactive or unavailable.",
+        )
+
     return {
         "account_number": recipient_account.account_number,
         "account_name": recipient_account.account_name,
         "bank_name": "BRAVEBANK",
+        "status": recipient_account.status,
         "is_internal": True,
     }
 
@@ -109,7 +132,7 @@ def internal_transfer(
         pin=payload.pin,
         narration=payload.narration.strip() or "BraveBank Transfer",
         idempotency_key=payload.idempotency_key,
-        ip_address=request.client.host if request.client else None,
+        ip_address=get_client_ip(request),
     )
     return TransactionOut.model_validate(tx, from_attributes=True)
 
@@ -147,40 +170,19 @@ def resolve_external_account(
         "account_number": payload.account_number,
         "account_name": resolved_name,
         "simulated": True,
+        "external_transfers_available": False,
     }
 
 
-@router.post("/external", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
+@router.post("/external", response_model=TransactionOut)
 def external_transfer(
     payload: ExternalTransferRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
 ):
-    ensure_default_banks(db)
-    bank = db.scalar(select(Bank).where(Bank.code == payload.bank_code, Bank.is_active.is_(True)))
-    if bank is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Selected bank not found.")
-
-    account = _get_primary_account(db, current_user)
-    tx = execute_debit(
-        db=db,
-        user=current_user,
-        account=account,
-        amount=payload.amount,
-        pin=payload.pin,
-        category="external_transfer",
-        narration=payload.narration.strip() or f"Transfer to {payload.account_name}",
-        counterparty_name=payload.account_name.strip().upper(),
-        counterparty_account=payload.account_number,
-        counterparty_bank=bank.name,
-        idempotency_key=payload.idempotency_key,
-        ip_address=request.client.host if request.client else None,
-        metadata={"simulated": True, "transfer_type": "external", "bank_code": bank.code},
-        audit_action="transfer.external",
-        notification_title="External Transfer Sent (Simulated)",
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=EXTERNAL_TRANSFER_UNAVAILABLE_MESSAGE,
     )
-    return TransactionOut.model_validate(tx, from_attributes=True)
 
 
 @router.get("/beneficiaries")

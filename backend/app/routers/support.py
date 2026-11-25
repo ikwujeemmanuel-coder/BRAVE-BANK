@@ -19,19 +19,19 @@ router = APIRouter(prefix="/api", tags=["notifications-and-support"])
 FAQS = [
     {
         "question": "Is BRAVEBANK a licensed commercial bank?",
-        "answer": "No. BRAVEBANK is a simulated Nigerian digital banking prototype built for demonstration and engineering evaluation. No real money moves.",
+        "answer": "No. BRAVEBANK is a simulated Nigerian digital banking prototype built for demonstration and engineering evaluation. New accounts start with NGN 500,000.00 in simulated demo funds.",
     },
     {
-        "question": "Why does BRAVEBANK use my Nigerian phone number as primary ID?",
-        "answer": "Phone-first onboarding reflects mobile-first Nigerian fintech workflows. Email linking is optional and can be completed anytime in Settings.",
+        "question": "How does BRAVEBANK registration and verification work?",
+        "answer": "Registration requires your personal details, Nigerian phone number, email address verification via a 6-digit Email OTP, and a 4-digit transaction PIN.",
     },
     {
         "question": "How do I set or reset my 4-digit transaction PIN?",
-        "answer": "Open Settings -> Security & PIN to set your 4-digit transaction PIN, update an existing PIN, or reset via 6-digit OTP.",
+        "answer": "Open Settings -> Security & PIN to update an existing 4-digit PIN or reset via OTP.",
     },
     {
-        "question": "Are internal transfers instant and atomic?",
-        "answer": "Yes. Internal transfers lock both sender and recipient rows in PostgreSQL and record paired debit/credit ledger entries atomically.",
+        "question": "Are internal transfers instant, and can I transfer to external banks?",
+        "answer": "Internal transfers between BraveBank accounts are instant and atomic in PostgreSQL. External bank transfers are currently unavailable in this demo environment.",
     },
 ]
 

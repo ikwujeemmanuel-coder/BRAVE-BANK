@@ -205,10 +205,11 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
     showStep("success");
 
     document.getElementById("reg-success-summary").textContent =
-      `Welcome, ${user.first_name} ${user.surname}. Your BraveBank NGN account has been created.`;
+      `Welcome, ${user.first_name} ${user.surname}. Your BraveBank NGN account is active with ₦500,000.00 in simulated demo funds.`;
     document.getElementById("reg-success-details").innerHTML = `
       <div class="summary-kv-row"><span class="summary-kv-left">Account Holder</span><strong class="summary-kv-val">${escapeHtml(user.first_name)} ${escapeHtml(user.surname)}</strong></div>
       <div class="summary-kv-row"><span class="summary-kv-left">BraveBank Account</span><strong class="summary-kv-val">${escapeHtml(user.account_number || "—")}</strong></div>
+      <div class="summary-kv-row"><span class="summary-kv-left">Initial Demo Balance</span><strong class="summary-kv-val">&#8358;500,000.00 (Simulated Funds)</strong></div>
       <div class="summary-kv-row"><span class="summary-kv-left">Verified Email</span><strong class="summary-kv-val">${escapeHtml(user.email || "—")}</strong></div>
       <div class="summary-kv-row"><span class="summary-kv-left">Phone Number</span><strong class="summary-kv-val">${escapeHtml(user.phone_number)}</strong></div>
       <div class="summary-kv-row"><span class="summary-kv-left">Transaction PIN</span><strong class="summary-kv-val">4-Digit PIN Active</strong></div>

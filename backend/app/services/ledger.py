@@ -16,6 +16,7 @@ from backend.app.security.hashing import verify_pin
 from backend.app.services.audit import create_notification, log_audit
 
 TWO_DP = Decimal("0.01")
+INITIAL_DEMO_BALANCE = Decimal("500000.00")
 
 
 def quantize_ngn(amount: Decimal) -> Decimal:
@@ -74,7 +75,10 @@ def verify_transaction_pin_or_raise(db: Session, user_id: uuid.UUID, raw_pin: st
 
 def lock_account_for_update(db: Session, account_id: uuid.UUID) -> Account:
     account = db.scalar(
-        select(Account).where(Account.id == account_id).with_for_update()
+        select(Account)
+        .where(Account.id == account_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found.")
@@ -97,6 +101,87 @@ def lock_two_accounts_ordered(
     second = lock_account_for_update(db, account_id_b)
     first = lock_account_for_update(db, account_id_a)
     return first, second
+
+
+def credit_initial_demo_balance(
+    db: Session,
+    user: User,
+    account: Account,
+    ip_address: Optional[str] = None,
+    commit: bool = True,
+) -> Optional[Transaction]:
+    """Atomically initialize a BraveBank account with ₦500,000.00 demo funds at most once."""
+    demo_idempotency_key = f"demo-init-{account.id}"
+    existing = check_idempotency(db, demo_idempotency_key)
+    if existing is not None:
+        if not account.demo_funded:
+            account.demo_funded = True
+        return None
+
+    locked = lock_account_for_update(db, account.id)
+    if locked.demo_funded:
+        return None
+
+    before = quantize_ngn(locked.available_balance)
+    after = quantize_ngn(before + INITIAL_DEMO_BALANCE)
+    locked.available_balance = after
+    locked.ledger_balance = quantize_ngn(locked.ledger_balance + INITIAL_DEMO_BALANCE)
+    locked.demo_funded = True
+
+    tx = Transaction(
+        reference=generate_reference("DMO"),
+        idempotency_key=demo_idempotency_key,
+        account_id=locked.id,
+        user_id=user.id,
+        category="demo_funding",
+        direction="credit",
+        amount=INITIAL_DEMO_BALANCE,
+        fee=Decimal("0.00"),
+        currency="NGN",
+        status="completed",
+        narration="Initial Demo Balance (Simulated Funds)",
+        counterparty_name="BRAVEBANK DEMO TREASURY",
+        counterparty_account=locked.account_number,
+        counterparty_bank="BRAVEBANK (Simulated)",
+        metadata_json={"simulated": True, "demo_initial_funding": True},
+    )
+    db.add(tx)
+    db.flush()
+
+    db.add(
+        LedgerEntry(
+            transaction_id=tx.id,
+            account_id=locked.id,
+            entry_type="credit",
+            amount=INITIAL_DEMO_BALANCE,
+            balance_before=before,
+            balance_after=after,
+            description="Initial Demo Balance (Simulated Funds)",
+        )
+    )
+    create_notification(
+        db,
+        user.id,
+        "transaction",
+        "Initial Demo Balance Credited",
+        (
+            f"Your demo account {locked.account_number} has been initialized with "
+            f"{format_ngn(INITIAL_DEMO_BALANCE)} in simulated funds. Ref: {tx.reference}"
+        ),
+    )
+    log_audit(
+        db,
+        action="account.demo_funded",
+        resource_type="transaction",
+        user_id=user.id,
+        resource_id=str(tx.id),
+        ip_address=ip_address,
+        details={"amount": str(INITIAL_DEMO_BALANCE), "reference": tx.reference},
+    )
+    if commit:
+        db.commit()
+        db.refresh(tx)
+    return tx
 
 
 def execute_deposit(
@@ -320,6 +405,12 @@ def execute_internal_transfer(
     )
     if locked_sender.user_id != sender.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied.")
+    recipient_user = db.get(User, locked_recipient.user_id)
+    if recipient_user is None or not recipient_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Recipient account is inactive or unavailable.",
+        )
 
     sender_before = quantize_ngn(locked_sender.available_balance)
     if sender_before < amount:

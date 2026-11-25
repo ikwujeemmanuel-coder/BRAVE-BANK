@@ -20,6 +20,7 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
         "/js/savings.js",
         "/js/cards.js",
         "/js/config.js",
+        "/js/effects.js",
         "/js/history.js",
         "/js/notifications.js",
         "/js/profile.js",
@@ -49,6 +50,7 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
     assert html.count('class="otp-box"') == 6
     assert 'id="setup-pin"' in html
     assert 'maxlength="4"' in html  # 4-digit transaction PIN
+    assert 'id="top-sound-toggle-btn"' in html
     assert 'href="#"' not in html
     assert 'data-view="dashboard"' in html
     assert 'data-view="transfers"' in html
@@ -59,9 +61,12 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
     css = client.get("/css/styles.css").text
     assert "--primary: #007bff" in css.lower()
     assert "--secondary: #3390ff" in css.lower()
+    assert "--violet: #8b5cf6" in css.lower()
     assert "--navy: #0f172a" in css.lower()
     assert "--bg-light: #f3f6ff" in css.lower()
     assert "--white: #ffffff" in css.lower()
+    assert "--glass-surface:" in css.lower()
+    assert "prefers-reduced-motion" in css.lower()
 
     dashboard_js = client.get("/js/dashboard.js").text
     for action_label in (
@@ -75,6 +80,17 @@ def test_frontend_static_assets_and_bravebank_ui_contract(client: TestClient):
         "Savings",
     ):
         assert action_label in dashboard_js
+
+    effects_js = client.get("/js/effects.js").text
+    assert "triggerTransferSuccessCelebration" in effects_js
+    assert "bravebank_sound_muted" in effects_js
+    assert "bb-flower-overlay" in effects_js
+
+    transfers_js = client.get("/js/transfers.js").text
+    assert (
+        "External bank transfers are currently unavailable. BraveBank cannot transfer real funds to other banks in this demo environment."
+        in transfers_js
+    )
 
     config_js = client.get("/js/config.js").text
     assert "https://brave-bank.onrender.com" in config_js
@@ -97,11 +113,12 @@ def test_complete_end_to_end_banking_journey_with_leading_zero_pin(client: TestC
     )
     headers = customer["headers"]
 
-    # 2. Dashboard reflects actual balance = 0.00 and zero invented transactions
+    # 2. Dashboard reflects NGN 500,000.00 initial demo balance & single demo_funding transaction
     dash = client.get("/api/accounts/dashboard", headers=headers).json()
     assert dash["account"]["account_number"] == customer["account_number"]
-    assert dash["account"]["available_balance"] == "0.00"
-    assert dash["recent_transactions"] == []
+    assert dash["account"]["available_balance"] == "500000.00"
+    assert len(dash["recent_transactions"]) == 1
+    assert dash["recent_transactions"][0]["category"] == "demo_funding"
 
     # 3. Add Money (Deposit)
     dep = client.post(
@@ -142,9 +159,9 @@ def test_complete_end_to_end_banking_journey_with_leading_zero_pin(client: TestC
         assert bill.status_code == 201, bill.text
         assert bill.json()["token_or_receipt"]
 
-    # 6. Verify balance updated accurately: 125750 - 5750 - 1000 - 2000 - 5000 - 9300 = 102700.00
+    # 6. Verify balance updated accurately: 500000 + 125750 - 5750 - 1000 - 2000 - 5000 - 9300 = 602700.00
     dash_after = client.get("/api/accounts/dashboard", headers=headers).json()
-    assert dash_after["account"]["available_balance"] == "102700.00"
+    assert dash_after["account"]["available_balance"] == "602700.00"
 
     # 7. Logout revokes Bearer/session access
     out = client.post("/api/auth/logout", headers=headers)

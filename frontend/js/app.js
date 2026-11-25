@@ -5,7 +5,14 @@ import { initAuthFlow } from "./auth.js";
 import { renderPayments } from "./bills.js";
 import { renderCards } from "./cards.js";
 import { renderAccountDetails, renderDashboard } from "./dashboard.js";
+import {
+  initStarfieldBackdrop,
+  isSoundMuted,
+  toggleSoundMuted,
+  unlockAudioOnGesture,
+} from "./effects.js";
 import { renderHistory } from "./history.js";
+import { icon } from "./icons.js";
 import { hydrateBrandElements } from "./logo.js";
 import { renderNotifications } from "./notifications.js";
 import { renderProfile, renderSettings, renderSupport } from "./profile.js";
@@ -46,8 +53,40 @@ const VIEW_META = {
   support: ["24/7 Support", "FAQs and support tickets"],
 };
 
-// Render declarative BraveBank swoosh stars, wordmarks, and subtle watermarks
+// Render declarative BraveBank swoosh stars, wordmarks, watermarks, and ambient starfield
 hydrateBrandElements();
+initStarfieldBackdrop();
+unlockAudioOnGesture();
+
+const topSoundToggleBtn = document.getElementById("top-sound-toggle-btn");
+function syncAllSoundButtons() {
+  const muted = isSoundMuted();
+  if (topSoundToggleBtn) {
+    topSoundToggleBtn.innerHTML = muted ? icon("volumeX", 17) : icon("volume2", 17);
+    topSoundToggleBtn.setAttribute("aria-label", muted ? "Unmute transaction sounds" : "Mute transaction sounds");
+    topSoundToggleBtn.setAttribute("title", muted ? "Sounds Muted (Click to Enable)" : "Sounds On (Click to Mute)");
+    topSoundToggleBtn.classList.toggle("is-muted", muted);
+  }
+  const dashSoundBtn = document.getElementById("dash-sound-btn");
+  if (dashSoundBtn) {
+    dashSoundBtn.innerHTML = muted ? icon("volumeX", 18) : icon("volume2", 18);
+    dashSoundBtn.classList.toggle("is-muted", muted);
+    dashSoundBtn.setAttribute("aria-label", muted ? "Unmute transaction sounds" : "Mute transaction sounds");
+    dashSoundBtn.setAttribute("title", muted ? "Sounds Muted" : "Sounds On");
+  }
+  const settingsSoundBtn = document.getElementById("settings-sound-toggle-btn");
+  if (settingsSoundBtn) {
+    settingsSoundBtn.innerHTML = `${muted ? icon("volumeX", 16) : icon("volume2", 16)} <span>${muted ? "Sounds Muted" : "Sounds Enabled"}</span>`;
+  }
+}
+syncAllSoundButtons();
+if (topSoundToggleBtn) {
+  topSoundToggleBtn.addEventListener("click", () => {
+    const muted = toggleSoundMuted();
+    showToast(muted ? "Transaction sounds muted." : "Transaction sounds enabled.", "info");
+  });
+}
+window.addEventListener("bravebank:sound-pref-changed", syncAllSoundButtons);
 
 function dismissSplash() {
   if (splashDone) return;
