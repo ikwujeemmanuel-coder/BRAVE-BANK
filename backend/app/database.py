@@ -93,13 +93,79 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def check_database_health() -> tuple[bool, str]:
-    """Verify PostgreSQL connectivity without silent fallback."""
-    try:
-        engine = get_engine()
+def get_schema_status(database_url: Optional[str] = None) -> dict[str, object]:
+    """Inspect PostgreSQL connectivity, expected model tables/columns, and Alembic revision."""
+    # Ensure all SQLAlchemy models are registered on Base.metadata
+    import backend.app.models  # noqa: F401
+    from sqlalchemy import inspect
+
+    engine = get_engine(database_url)
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+
+    inspector = inspect(engine)
+    existing_tables = set(inspector.get_table_names())
+    expected_tables = sorted(Base.metadata.tables.keys())
+    missing_tables = [table for table in expected_tables if table not in existing_tables]
+
+    missing_columns: dict[str, list[str]] = {}
+    for table_name in expected_tables:
+        if table_name in missing_tables:
+            continue
+        expected_cols = sorted(Base.metadata.tables[table_name].columns.keys())
+        actual_cols = {col["name"] for col in inspector.get_columns(table_name)}
+        absent = [col for col in expected_cols if col not in actual_cols]
+        if absent:
+            missing_columns[table_name] = absent
+
+    alembic_revision: Optional[str] = None
+    if "alembic_version" in existing_tables:
         with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-        return True, "connected"
+            row = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+            if row is not None:
+                alembic_revision = str(row[0])
+
+    schema_ready = not missing_tables and not missing_columns
+    return {
+        "connected": True,
+        "schema_ready": schema_ready,
+        "expected_tables_count": len(expected_tables),
+        "existing_tables_count": len(existing_tables & set(expected_tables)),
+        "missing_tables": missing_tables,
+        "missing_columns": missing_columns,
+        "alembic_revision": alembic_revision,
+    }
+
+
+def format_schema_health_detail(schema_status: dict[str, object]) -> tuple[bool, str]:
+    """Convert get_schema_status() output into a (healthy, detail_message) tuple."""
+    missing_tables: list[str] = schema_status["missing_tables"]  # type: ignore[assignment]
+    missing_columns: dict[str, list[str]] = schema_status["missing_columns"]  # type: ignore[assignment]
+    if missing_tables:
+        preview = ", ".join(missing_tables[:5])
+        suffix = f" (+{len(missing_tables) - 5} more)" if len(missing_tables) > 5 else ""
+        return (
+            False,
+            f"Database schema incomplete (missing tables: {preview}{suffix}). "
+            "Run 'alembic -c backend/alembic.ini upgrade head' with DIRECT_URL configured.",
+        )
+    if missing_columns:
+        cols_desc = ", ".join(
+            f"{tbl}({', '.join(cols)})" for tbl, cols in sorted(missing_columns.items())
+        )
+        return (
+            False,
+            f"Database schema out of date (missing columns: {cols_desc}). "
+            "Run 'alembic -c backend/alembic.ini upgrade head' with DIRECT_URL configured.",
+        )
+    return True, "connected"
+
+
+def check_database_health(database_url: Optional[str] = None) -> tuple[bool, str]:
+    """Verify PostgreSQL connectivity and required schema tables without silent fallback."""
+    try:
+        schema_status = get_schema_status(database_url)
+        return format_schema_health_detail(schema_status)
     except DatabaseConfigurationError as exc:
         return False, str(exc)
     except Exception as exc:  # pragma: no cover - defensive runtime check

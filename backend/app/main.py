@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import get_settings
-from backend.app.database import DatabaseConfigurationError, get_session_factory
+from backend.app.database import DatabaseConfigurationError, check_database_health, get_session_factory
 from backend.app.routers import accounts, auth, health, services, support, transactions, transfers
 from backend.app.services.accounts import ensure_default_banks
 from backend.app.services.email import EmailDeliveryError
@@ -24,9 +24,13 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     try:
-        session_factory = get_session_factory()
-        with session_factory() as db:
-            ensure_default_banks(db)
+        db_ok, db_detail = check_database_health()
+        if not db_ok:
+            logger.error("BraveBank startup database check failed: %s", db_detail)
+        else:
+            session_factory = get_session_factory()
+            with session_factory() as db:
+                ensure_default_banks(db)
     except DatabaseConfigurationError as exc:
         logger.warning("Database not yet configured on startup: %s", exc)
     except Exception as exc:  # pragma: no cover - defensive startup log

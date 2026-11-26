@@ -89,7 +89,7 @@ def upgrade() -> None:
                     :id, :reference, :idempotency_key, :account_id, :user_id,
                     'demo_funding', 'credit', :amount, 0.00, 'NGN', 'completed',
                     'Initial Demo Balance (Simulated Funds)', 'BRAVEBANK DEMO TREASURY', :account_number,
-                    'BRAVEBANK (Simulated)', CAST(:metadata_json AS jsonb), :created_at
+                    'BRAVEBANK (Simulated)', CAST(:metadata_json AS json), :created_at
                 )
                 """
             ),

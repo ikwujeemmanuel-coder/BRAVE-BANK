@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: bravebank
+    name: brave-bank
     runtime: python
     plan: free
     region: frankfurt
