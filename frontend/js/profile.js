@@ -4,7 +4,7 @@ import { apiRequest } from "./api.js";
 import { isSoundMuted, toggleSoundMuted } from "./effects.js";
 import { icon } from "./icons.js";
 import { appState, escapeHtml, formatDateTime } from "./state.js";
-import { showToast } from "./ui.js";
+import { showToast, withButtonLoading } from "./ui.js";
 
 export async function renderProfile(root, navigate, refreshUser, onLogout) {
   const me = await apiRequest("/api/auth/me");
@@ -81,7 +81,6 @@ export async function renderProfile(root, navigate, refreshUser, onLogout) {
             </div>
           </label>
         </form>
-        <div id="email-dev-otp" class="dev-otp-box hidden"></div>
         <form id="verify-email-form" class="form-stack ${me.email && !me.email_verified ? "" : "hidden"}">
           <label class="field">
             <span>6-Digit Email Verification Code</span>
@@ -103,35 +102,38 @@ export async function renderProfile(root, navigate, refreshUser, onLogout) {
 
   document.getElementById("link-email-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    try {
-      const res = await apiRequest("/api/auth/email/link", {
-        method: "POST",
-        body: JSON.stringify({ email: document.getElementById("link-email-input").value }),
-      });
-      showToast(res.message, "success");
-      document.getElementById("verify-email-form").classList.remove("hidden");
-      if (res.dev_otp) {
-        const box = document.getElementById("email-dev-otp");
-        box.textContent = `Development Email OTP: ${res.dev_otp}`;
-        box.classList.remove("hidden");
+    const emailInput = document.getElementById("link-email-input").value.trim();
+    const btn = e.target.querySelector("button[type='submit']");
+    await withButtonLoading(btn, "Sending...", async () => {
+      try {
+        const res = await apiRequest("/api/auth/email/link", {
+          method: "POST",
+          body: JSON.stringify({ email: emailInput }),
+        });
+        showToast(res.message, "success");
+        document.getElementById("verify-email-form").classList.remove("hidden");
+      } catch (err) {
+        showToast(err.message, "error");
       }
-    } catch (err) {
-      showToast(err.message, "error");
-    }
+    });
   });
 
   document.getElementById("verify-email-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    try {
-      await apiRequest("/api/auth/email/verify", {
-        method: "POST",
-        body: JSON.stringify({ otp_code: document.getElementById("verify-email-code").value }),
-      });
-      showToast("Email verified!", "success");
-      await renderProfile(root, navigate, refreshUser, onLogout);
-    } catch (err) {
-      showToast(err.message, "error");
-    }
+    const code = document.getElementById("verify-email-code").value.trim();
+    const btn = e.target.querySelector("button[type='submit']");
+    await withButtonLoading(btn, "Verifying...", async () => {
+      try {
+        await apiRequest("/api/auth/email/verify", {
+          method: "POST",
+          body: JSON.stringify({ otp_code: code }),
+        });
+        showToast("Email verified!", "success");
+        await renderProfile(root, navigate, refreshUser, onLogout);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
   });
 }
 
@@ -175,12 +177,26 @@ export async function renderSettings(root, navigate, refreshUser) {
         </form>
 
         <div style="border-top:1px solid var(--border); padding-top:12px;">
-          <button id="request-pin-reset-btn" type="button" class="btn btn-outline-blue btn-sm">Forgot or Upgrading PIN? Reset via 6-Digit OTP</button>
-          <div id="pin-reset-dev-otp" class="dev-otp-box hidden" style="margin-top:10px;"></div>
+          <p class="muted-copy" style="font-size:0.8rem; margin:0 0 8px;">
+            ${
+              me.email && me.email_verified
+                ? `Recover or upgrade your PIN with a 6-digit code sent to your verified email (<strong>${escapeHtml(me.email)}</strong>).`
+                : "Verify your email address in Profile before requesting a transaction PIN reset."
+            }
+          </p>
+          <button
+            id="request-pin-reset-btn"
+            type="button"
+            class="btn btn-outline-blue btn-sm"
+            ${me.email && me.email_verified ? "" : "disabled"}
+          >
+            Forgot or Upgrading PIN? Send Email OTP
+          </button>
           <form id="pin-reset-confirm-form" class="form-stack hidden" style="margin-top:10px;">
+            <p id="pin-reset-email-hint" class="muted-copy" style="font-size:0.8rem; margin:0;"></p>
             <label class="field">
-              <span>6-Digit OTP</span>
-              <input id="pin-reset-otp" type="text" inputmode="numeric" maxlength="6" pattern="\\d{6}" required placeholder="6-digit OTP" />
+              <span>6-Digit Email OTP</span>
+              <input id="pin-reset-otp" type="text" inputmode="numeric" maxlength="6" pattern="\\d{6}" required placeholder="6-digit OTP from email" />
             </label>
             <label class="field">
               <span>New 4-Digit PIN</span>
@@ -190,7 +206,11 @@ export async function renderSettings(root, navigate, refreshUser) {
               <span>Confirm 4-Digit PIN</span>
               <input id="pin-reset-confirm" type="password" inputmode="numeric" maxlength="4" pattern="\\d{4}" required placeholder="Repeat 4 digits" />
             </label>
-            <button type="submit" class="btn btn-primary btn-sm">Confirm PIN Reset</button>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button type="submit" class="btn btn-primary btn-sm">Confirm PIN Reset</button>
+              <button id="resend-pin-reset-btn" type="button" class="btn btn-outline-blue btn-sm">Resend Code</button>
+              <span id="pin-reset-countdown" class="muted-copy" style="font-size:0.78rem;"></span>
+            </div>
           </form>
         </div>
       </section>
@@ -308,43 +328,96 @@ export async function renderSettings(root, navigate, refreshUser) {
     }
   });
 
-  document.getElementById("request-pin-reset-btn").addEventListener("click", async () => {
-    try {
-      const res = await apiRequest("/api/auth/pin/reset-request", { method: "POST" });
-      document.getElementById("pin-reset-confirm-form").classList.remove("hidden");
-      if (res.dev_otp) {
-        const box = document.getElementById("pin-reset-dev-otp");
-        box.textContent = `Development PIN Reset OTP: ${res.dev_otp}`;
-        box.classList.remove("hidden");
-      }
-      showToast(res.message, "success");
-    } catch (err) {
-      showToast(err.message, "error");
+  let pinResetCooldownTimer = null;
+  const requestPinResetBtn = document.getElementById("request-pin-reset-btn");
+  const resendPinResetBtn = document.getElementById("resend-pin-reset-btn");
+  const pinResetCountdownEl = document.getElementById("pin-reset-countdown");
+  const pinResetHintEl = document.getElementById("pin-reset-email-hint");
+
+  function startPinResetCooldown(seconds = 60) {
+    if (pinResetCooldownTimer) clearInterval(pinResetCooldownTimer);
+    let remaining = Math.max(0, Number(seconds) || 60);
+    if (remaining === 0) {
+      resendPinResetBtn.disabled = false;
+      pinResetCountdownEl.textContent = "";
+      return;
     }
-  });
+    resendPinResetBtn.disabled = true;
+    const formatSec = (s) => `(${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")})`;
+    pinResetCountdownEl.textContent = formatSec(remaining);
+    pinResetCooldownTimer = setInterval(() => {
+      if (!document.body.contains(resendPinResetBtn)) {
+        clearInterval(pinResetCooldownTimer);
+        pinResetCooldownTimer = null;
+        return;
+      }
+      remaining -= 1;
+      if (remaining <= 0) {
+        clearInterval(pinResetCooldownTimer);
+        pinResetCooldownTimer = null;
+        resendPinResetBtn.disabled = false;
+        pinResetCountdownEl.textContent = "(00:00)";
+      } else {
+        pinResetCountdownEl.textContent = formatSec(remaining);
+      }
+    }, 1000);
+  }
+
+  async function requestPinResetEmailOtp(triggerBtn) {
+    await withButtonLoading(triggerBtn, "Sending Email OTP...", async () => {
+      try {
+        const res = await apiRequest("/api/auth/pin/reset-request", { method: "POST" });
+        document.getElementById("pin-reset-confirm-form").classList.remove("hidden");
+        if (pinResetHintEl) {
+          pinResetHintEl.textContent = res.masked_email
+            ? `Enter the 6-digit verification code sent to ${res.masked_email}.`
+            : "Enter the 6-digit verification code sent to your verified email.";
+        }
+        startPinResetCooldown(res.resend_cooldown_seconds || 60);
+        showToast(res.message, "success");
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+  }
+
+  requestPinResetBtn.addEventListener("click", () => requestPinResetEmailOtp(requestPinResetBtn));
+  resendPinResetBtn.addEventListener("click", () => requestPinResetEmailOtp(resendPinResetBtn));
 
   document.getElementById("pin-reset-confirm-form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    const otpCode = document.getElementById("pin-reset-otp").value.trim();
     const newPin = document.getElementById("pin-reset-new").value.trim();
     const confirmPin = document.getElementById("pin-reset-confirm").value.trim();
+    if (!/^\d{6}$/.test(otpCode)) {
+      showToast("Enter the 6-digit verification code from your email.", "error");
+      return;
+    }
     if (!/^\d{4}$/.test(newPin) || newPin !== confirmPin) {
       showToast("New PIN must be exactly 4 numeric digits and match confirmation.", "error");
       return;
     }
-    try {
-      const res = await apiRequest("/api/auth/pin/reset-confirm", {
-        method: "POST",
-        body: JSON.stringify({
-          otp_code: document.getElementById("pin-reset-otp").value.trim(),
-          new_pin: newPin,
-          confirm_pin: confirmPin,
-        }),
-      });
-      showToast(res.message, "success");
-      await renderSettings(root, navigate, refreshUser);
-    } catch (err) {
-      showToast(err.message, "error");
-    }
+    const submitBtn = e.target.querySelector("button[type='submit']");
+    await withButtonLoading(submitBtn, "Resetting PIN...", async () => {
+      try {
+        const res = await apiRequest("/api/auth/pin/reset-confirm", {
+          method: "POST",
+          body: JSON.stringify({
+            otp_code: otpCode,
+            new_pin: newPin,
+            confirm_pin: confirmPin,
+          }),
+        });
+        if (pinResetCooldownTimer) {
+          clearInterval(pinResetCooldownTimer);
+          pinResetCooldownTimer = null;
+        }
+        showToast(res.message, "success");
+        await renderSettings(root, navigate, refreshUser);
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
   });
 
   document.getElementById("change-pw-form").addEventListener("submit", async (e) => {

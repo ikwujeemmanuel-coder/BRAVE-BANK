@@ -1,0 +1,11 @@
+{
+  "name": "bravebank",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BRAVEBANK — Nigerian Digital Banking Prototype (FastAPI + PostgreSQL + Frontend)",
+  "scripts": {
+    "dev": "bash scripts/dev_server.sh",
+    "lint": "for f in frontend/js/*.js; do node --check \"$f\" || exit 1; done",
+    "build": "for f in frontend/js/*.js; do node --check \"$f\" || exit 1; done"
+  }
+}

@@ -10,7 +10,11 @@ from backend.app.models.user import OtpRecord, TransactionPin, User
 from backend.app.security.hashing import hash_pin
 from backend.app.services.email import get_dev_email_outbox
 from backend.app.services.sms import get_dev_outbox
-from backend.tests.conftest import register_and_verify_user
+from backend.tests.conftest import (
+    extract_latest_email_otp,
+    extract_latest_sms_otp,
+    register_and_verify_user,
+)
 
 
 def test_four_step_email_otp_registration_creates_account_and_preserves_phone_unverified(client, db_session):
@@ -34,13 +38,15 @@ def test_four_step_email_otp_registration_creates_account_and_preserves_phone_un
     assert start_data["phone_number"] == "+2348031112233"
     assert start_data["email"] == "aisha.bello@example.com"
     assert start_data["masked_email"] == "ai***o@example.com"
-    assert len(start_data["dev_otp"]) == 6
+    assert "dev_otp" not in start_data
 
     # Registration OTP must ONLY go via email, never SMS
     assert len(get_dev_outbox("+2348031112233")) == sms_before
     email_outbox = get_dev_email_outbox("aisha.bello@example.com")
     assert email_outbox
-    assert start_data["dev_otp"] in email_outbox[0]["text_body"]
+    sent_otp = extract_latest_email_otp("aisha.bello@example.com")
+    assert len(sent_otp) == 6
+    assert sent_otp in email_outbox[0]["text_body"]
 
     # Incomplete registration cannot log in yet
     early_login = client.post(
@@ -52,7 +58,7 @@ def test_four_step_email_otp_registration_creates_account_and_preserves_phone_un
     # Step 2: Verify Email OTP -> marks email_verified=True ONLY, leaves phone_verified=False
     verify_res = client.post(
         "/api/auth/register/verify-email",
-        json={"email": "aisha.bello@example.com", "code": start_data["dev_otp"]},
+        json={"email": "aisha.bello@example.com", "code": sent_otp},
     )
     assert verify_res.status_code == 200, verify_res.text
     verify_data = verify_res.json()
@@ -142,7 +148,7 @@ def test_required_email_password_strength_and_4_digit_pin_validation(client):
     ).json()
     reg_token = client.post(
         "/api/auth/register/verify-email",
-        json={"email": start["email"], "code": start["dev_otp"]},
+        json={"email": start["email"], "code": extract_latest_email_otp(start["email"])},
     ).json()["registration_token"]
 
     for bad_pin in ["123", "12345", "123456", "12a4", "1 23"]:
@@ -227,7 +233,10 @@ def test_pending_registration_retry_and_resume_without_duplicates(client, db_ses
     # Verify email, then resume again -> transitions cleanly to set_pin step
     verify = client.post(
         "/api/auth/register/verify-email",
-        json={"email": "chidi.nwosu@example.com", "code": first.json()["dev_otp"]},
+        json={
+            "email": "chidi.nwosu@example.com",
+            "code": extract_latest_email_otp("chidi.nwosu@example.com"),
+        },
     )
     assert verify.status_code == 200
 
@@ -269,6 +278,9 @@ def test_email_otp_cooldown_attempts_and_expiry(client, db_session):
         },
     ).json()
 
+    assert "dev_otp" not in reg
+    first_otp = extract_latest_email_otp("tunde.otp@example.com")
+
     # Cooldown prevents immediate resend
     resend = client.post(
         "/api/auth/register/resend-email-otp",
@@ -287,7 +299,7 @@ def test_email_otp_cooldown_attempts_and_expiry(client, db_session):
     # Even real OTP now fails because max attempts exceeded
     real_after_lock = client.post(
         "/api/auth/register/verify-email",
-        json={"email": "tunde.otp@example.com", "code": reg["dev_otp"]},
+        json={"email": "tunde.otp@example.com", "code": first_otp},
     )
     assert real_after_lock.status_code == 400
 
@@ -305,7 +317,8 @@ def test_email_otp_cooldown_attempts_and_expiry(client, db_session):
         json={"email": "tunde.otp@example.com"},
     )
     assert fresh.status_code == 200
-    fresh_otp = fresh.json()["dev_otp"]
+    assert "dev_otp" not in fresh.json()
+    fresh_otp = extract_latest_email_otp("tunde.otp@example.com")
 
     # Expire the OTP manually in DB
     newest = db_session.scalar(
@@ -326,8 +339,9 @@ def test_email_otp_cooldown_attempts_and_expiry(client, db_session):
 
 def test_production_unconfigured_email_fails_loudly(client, monkeypatch):
     monkeypatch.setenv("APP_ENV", "production")
-    monkeypatch.setenv("EMAIL_PROVIDER", "smtp")
-    monkeypatch.setenv("SMTP_HOST", "")
+    monkeypatch.setenv("EMAIL_PROVIDER", "brevo")
+    monkeypatch.setenv("BREVO_API_KEY", "")
+    monkeypatch.setenv("EMAIL_FROM_ADDRESS", "")
     get_settings.cache_clear()
     try:
         res = client.post(
@@ -342,7 +356,7 @@ def test_production_unconfigured_email_fails_loudly(client, monkeypatch):
             },
         )
         assert res.status_code == 503
-        assert "smtp" in res.json()["detail"].lower() or "configured" in res.json()["detail"].lower()
+        assert "not configured" in res.json()["detail"].lower() or "credentials" in res.json()["detail"].lower()
     finally:
         monkeypatch.setenv("APP_ENV", "test")
         monkeypatch.setenv("EMAIL_PROVIDER", "mock")
@@ -457,12 +471,18 @@ def test_legacy_6_digit_pin_upgrade_and_otp_pin_reset(client, db_session):
     )
     assert upgrade.status_code == 200
 
-    # OTP PIN reset also establishes a new 4-digit PIN ("4321")
+    # OTP PIN reset sends to verified email and establishes a new 4-digit PIN ("4321")
     reset_req = client.post("/api/auth/pin/reset-request", headers=customer["headers"])
     assert reset_req.status_code == 200
+    assert "dev_otp" not in reset_req.json()
+    assert reset_req.json()["masked_email"]
     reset_confirm = client.post(
         "/api/auth/pin/reset-confirm",
-        json={"otp_code": reset_req.json()["dev_otp"], "new_pin": "4321", "confirm_pin": "4321"},
+        json={
+            "otp_code": extract_latest_email_otp(customer["user"]["email"]),
+            "new_pin": "4321",
+            "confirm_pin": "4321",
+        },
         headers=customer["headers"],
     )
     assert reset_confirm.status_code == 200

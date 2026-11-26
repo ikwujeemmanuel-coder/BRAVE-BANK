@@ -40,7 +40,7 @@ class MockSMSProvider(SMSProvider):
             sent_at=datetime.now(timezone.utc),
         )
         self.outbox.appendleft(entry)
-        logger.info("[DEV MOCK SMS] To %s: %s", phone_number, message)
+        logger.info("[DEV MOCK SMS] Queued SMS notification.")
 
 
 class ProductionSMSNotConfiguredProvider(SMSProvider):

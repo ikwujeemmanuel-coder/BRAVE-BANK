@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from backend.app.config import get_settings
 from backend.app.models.user import OtpRecord
 from backend.app.security.hashing import hash_otp, verify_otp_hash
-from backend.app.services.email import get_email_provider
+from backend.app.services.email import send_otp_email
 from backend.app.services.sms import get_sms_provider
 
 
@@ -89,30 +89,18 @@ def issue_email_otp(
     db.add(record)
     db.flush()
 
-    email_provider = get_email_provider()
-    subject = "BRAVEBANK — Verify Your Email Address"
-    text_body = (
-        f"Your BRAVEBANK verification code is {raw_code}.\n\n"
-        "Enter this 6-digit code to continue creating your BraveBank account.\n"
-        "This code expires in 5 minutes. Do not share it with anyone."
-    )
-    html_body = (
-        "<div style='font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;"
-        "border:1px solid #e2e8f6;border-radius:16px;background:#ffffff'>"
-        "<h2 style='color:#0f172a;margin-top:0'>BRAVE<span style='color:#007bff'>BANK</span></h2>"
-        "<p style='color:#475569'>Your six-digit email verification code is:</p>"
-        f"<div style='font-size:28px;font-weight:800;letter-spacing:6px;color:#007bff;"
-        f"background:#f3f6ff;padding:14px 18px;border-radius:12px;text-align:center'>{raw_code}</div>"
-        "<p style='color:#64748b;font-size:13px;margin-top:16px'>"
-        "This code expires in 5 minutes. Never share your verification code or PIN.</p></div>"
-    )
-    email_provider.send_email(normalized_email, subject, text_body, html_body)
+    try:
+        send_otp_email(
+            recipient=normalized_email,
+            code=raw_code,
+            purpose=purpose,
+            expire_seconds=settings.otp_expire_seconds,
+        )
+    except Exception:
+        db.rollback()
+        raise
 
-    dev_otp: Optional[str] = None
-    if settings.is_development and settings.email_provider.lower() == "mock":
-        dev_otp = raw_code
-
-    return record, dev_otp
+    return record, None
 
 
 def verify_email_otp_code(
@@ -234,16 +222,16 @@ def issue_otp(
     db.flush()
 
     sms = get_sms_provider()
-    sms.send_sms(
-        phone_number,
-        f"Your BRAVEBANK verification code is {raw_code}. It expires in 5 minutes. Do not share it.",
-    )
+    try:
+        sms.send_sms(
+            phone_number,
+            f"Your BRAVEBANK verification code is {raw_code}. It expires in 5 minutes. Do not share it.",
+        )
+    except Exception:
+        db.rollback()
+        raise
 
-    dev_otp: Optional[str] = None
-    if settings.is_development and settings.sms_provider.lower() == "mock":
-        dev_otp = raw_code
-
-    return record, dev_otp
+    return record, None
 
 
 def verify_otp_code(

@@ -16,6 +16,8 @@ import {
 import { showToast, withButtonLoading } from "./ui.js";
 
 let isLoggingIn = false;
+let isRequestingReset = false;
+let isConfirmingReset = false;
 
 export function initAuthFlow({ enterAuthenticatedShell }) {
   const welcomeView = document.getElementById("welcome-view");
@@ -25,7 +27,6 @@ export function initAuthFlow({ enterAuthenticatedShell }) {
 
   const loginForm = document.getElementById("login-form");
   const loginFormError = document.getElementById("login-form-error");
-  const resetDevOtpBox = document.getElementById("reset-dev-otp-box");
 
   let regController = null;
 
@@ -157,46 +158,83 @@ export function initAuthFlow({ enterAuthenticatedShell }) {
   });
 
   // Password Reset
-  document.getElementById("reset-request-form").addEventListener("submit", async (e) => {
+  const resetReqForm = document.getElementById("reset-request-form");
+  const resetConfirmForm = document.getElementById("reset-confirm-form");
+
+  resetReqForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (isRequestingReset) return;
+    const phone = document.getElementById("reset-phone").value.trim();
+    if (!isValidNigerianPhoneClient(phone)) {
+      showToast("Enter a valid Nigerian phone number (e.g. 08012345678).", "error");
+      return;
+    }
+
+    isRequestingReset = true;
+    const btn = resetReqForm.querySelector("button[type='submit']");
     try {
-      const res = await apiRequest("/api/auth/password/reset-request", {
-        method: "POST",
-        body: JSON.stringify({ phone_number: document.getElementById("reset-phone").value }),
+      await withButtonLoading(btn, "Sending Code...", async () => {
+        try {
+          const res = await apiRequest("/api/auth/password/reset-request", {
+            method: "POST",
+            body: JSON.stringify({ phone_number: phone }),
+          });
+          showToast(res.message, "success");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
       });
-      if (res.dev_otp) {
-        resetDevOtpBox.textContent = `Development Reset OTP: ${res.dev_otp}`;
-        resetDevOtpBox.classList.remove("hidden");
-      }
-      showToast(res.message, "success");
-    } catch (err) {
-      showToast(err.message, "error");
+    } finally {
+      isRequestingReset = false;
     }
   });
 
-  document.getElementById("reset-confirm-form").addEventListener("submit", async (e) => {
+  resetConfirmForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (isConfirmingReset) return;
+    const phone = document.getElementById("reset-phone").value.trim();
+    const otpCode = document.getElementById("reset-otp").value.trim();
     const pw = document.getElementById("reset-new-pw").value;
     const confirmPw = document.getElementById("reset-confirm-pw").value;
+
+    if (!isValidNigerianPhoneClient(phone)) {
+      showToast("Enter a valid Nigerian phone number (e.g. 08012345678).", "error");
+      return;
+    }
+    if (!/^\d{6}$/.test(otpCode)) {
+      showToast("Enter the 6-digit verification code from your email.", "error");
+      return;
+    }
     const pwErr = validatePasswordClient(pw, confirmPw);
     if (pwErr) {
       showToast(pwErr, "error");
       return;
     }
+
+    isConfirmingReset = true;
+    const btn = resetConfirmForm.querySelector("button[type='submit']");
     try {
-      const res = await apiRequest("/api/auth/password/reset-confirm", {
-        method: "POST",
-        body: JSON.stringify({
-          phone_number: document.getElementById("reset-phone").value,
-          otp_code: document.getElementById("reset-otp").value,
-          new_password: pw,
-          confirm_password: confirmPw,
-        }),
+      await withButtonLoading(btn, "Resetting Password...", async () => {
+        try {
+          const res = await apiRequest("/api/auth/password/reset-confirm", {
+            method: "POST",
+            body: JSON.stringify({
+              phone_number: phone,
+              otp_code: otpCode,
+              new_password: pw,
+              confirm_password: confirmPw,
+            }),
+          });
+          resetReqForm.reset();
+          resetConfirmForm.reset();
+          showToast(res.message, "success");
+          showAuthScreen("login");
+        } catch (err) {
+          showToast(err.message, "error");
+        }
       });
-      showToast(res.message, "success");
-      showAuthScreen("login");
-    } catch (err) {
-      showToast(err.message, "error");
+    } finally {
+      isConfirmingReset = false;
     }
   });
 

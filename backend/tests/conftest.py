@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import re
 from typing import Generator
 
 import pytest
@@ -26,6 +27,8 @@ from backend.app.database import Base, get_db, normalize_postgres_url  # noqa: E
 from backend.app.main import create_app  # noqa: E402
 from backend.app.security.dependencies import rate_limiter  # noqa: E402
 from backend.app.services.accounts import ensure_default_banks  # noqa: E402
+from backend.app.services.email import get_dev_email_outbox  # noqa: E402
+from backend.app.services.sms import get_dev_outbox  # noqa: E402
 
 get_settings.cache_clear()
 NORMALIZED_TEST_URL = normalize_postgres_url(TEST_DB_URL)
@@ -82,6 +85,22 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
         yield test_client
 
 
+def extract_latest_email_otp(email: str) -> str:
+    messages = get_dev_email_outbox(email)
+    assert messages, f"No test email queued for {email}"
+    match = re.search(r"\b(\d{6})\b", messages[0]["text_body"])
+    assert match, f"No 6-digit code found in email body for {email}"
+    return match.group(1)
+
+
+def extract_latest_sms_otp(phone_number: str) -> str:
+    messages = get_dev_outbox(phone_number)
+    assert messages, f"No test SMS queued for {phone_number}"
+    match = re.search(r"\b(\d{6})\b", messages[0]["message"])
+    assert match, f"No 6-digit code found in SMS body for {phone_number}"
+    return match.group(1)
+
+
 def register_and_verify_user(
     client: TestClient,
     phone_number: str = "08012345678",
@@ -108,12 +127,13 @@ def register_and_verify_user(
     )
     assert start_res.status_code == 201, start_res.text
     start_data = start_res.json()
+    assert "dev_otp" not in start_data
 
     verify_res = client.post(
         "/api/auth/register/verify-email",
         json={
             "email": start_data["email"],
-            "code": start_data["dev_otp"],
+            "code": extract_latest_email_otp(start_data["email"]),
         },
     )
     assert verify_res.status_code == 200, verify_res.text

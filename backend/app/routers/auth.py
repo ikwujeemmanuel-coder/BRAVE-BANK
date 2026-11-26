@@ -14,7 +14,7 @@ from backend.app.config import get_settings
 from backend.app.database import get_db
 from backend.app.models.banking import Account
 from backend.app.models.services import SavingsAccount
-from backend.app.models.user import Credential, LoginSession, TransactionPin, User
+from backend.app.models.user import Credential, LoginSession, OtpRecord, TransactionPin, User
 from backend.app.schemas.auth import (
     AuthTokenResponse,
     ChangePasswordRequest,
@@ -258,6 +258,16 @@ def register_start(payload: RegisterStartRequest, request: Request, db: Session 
         db.flush()
 
     if user.email != email_value:
+        db.execute(
+            update(OtpRecord)
+            .where(
+                OtpRecord.user_id == user.id,
+                OtpRecord.purpose == "email_registration",
+                OtpRecord.invalidated_at.is_(None),
+                OtpRecord.verified_at.is_(None),
+            )
+            .values(invalidated_at=datetime.now(timezone.utc))
+        )
         user.email = email_value
         user.email_verified = False
 
@@ -271,7 +281,7 @@ def register_start(payload: RegisterStartRequest, request: Request, db: Session 
         user.credential.failed_login_attempts = 0
         user.credential.locked_until = None
 
-    _, dev_otp = issue_email_otp(
+    _, _unused = issue_email_otp(
         db,
         target_email=email_value,
         purpose="email_registration",
@@ -290,18 +300,15 @@ def register_start(payload: RegisterStartRequest, request: Request, db: Session 
     db.commit()
 
     settings = get_settings()
-    response_body = {
+    return {
         "step": "verify_email",
-        "message": "Verification code sent to your email address.",
+        "message": "Verification code request accepted for your email address. Check your inbox or spam folder.",
         "email": email_value,
         "masked_email": mask_email(email_value),
         "phone_number": phone,
         "otp_expires_in_seconds": settings.otp_expire_seconds,
         "resend_cooldown_seconds": settings.otp_resend_cooldown_seconds,
     }
-    if dev_otp is not None:
-        response_body["dev_otp"] = dev_otp
-    return response_body
 
 
 @router.post(
@@ -322,7 +329,7 @@ def resend_registration_email_otp(payload: ResendEmailOtpRequest, db: Session = 
             detail="Account is already verified and active. Please login.",
         )
 
-    _, dev_otp = issue_email_otp(
+    issue_email_otp(
         db,
         target_email=email_value,
         purpose="email_registration",
@@ -332,16 +339,13 @@ def resend_registration_email_otp(payload: ResendEmailOtpRequest, db: Session = 
     db.commit()
 
     settings = get_settings()
-    res = {
-        "message": "A new 6-digit verification code has been sent to your email.",
+    return {
+        "message": "A new 6-digit verification code request was accepted for your email. Check your inbox or spam folder.",
         "email": email_value,
         "masked_email": mask_email(email_value),
         "otp_expires_in_seconds": settings.otp_expire_seconds,
         "resend_cooldown_seconds": settings.otp_resend_cooldown_seconds,
     }
-    if dev_otp is not None:
-        res["dev_otp"] = dev_otp
-    return res
 
 
 @router.post(
@@ -519,9 +523,8 @@ def resume_pending_registration(payload: LoginRequest, db: Session = Depends(get
         )
 
     if not user.email_verified:
-        dev_otp = None
         try:
-            _, dev_otp = issue_email_otp(
+            issue_email_otp(
                 db,
                 target_email=user.email,
                 purpose="email_registration",
@@ -533,7 +536,7 @@ def resume_pending_registration(payload: LoginRequest, db: Session = Depends(get
             if exc.status_code != status.HTTP_429_TOO_MANY_REQUESTS:
                 raise
         settings = get_settings()
-        res = {
+        return {
             "step": "verify_email",
             "email": user.email,
             "masked_email": mask_email(user.email),
@@ -541,9 +544,6 @@ def resume_pending_registration(payload: LoginRequest, db: Session = Depends(get
             "otp_expires_in_seconds": settings.otp_expire_seconds,
             "resend_cooldown_seconds": settings.otp_resend_cooldown_seconds,
         }
-        if dev_otp is not None:
-            res["dev_otp"] = dev_otp
-        return res
 
     reg_token = create_registration_pin_token(user.id, user.email)
     return {
@@ -568,17 +568,14 @@ def send_otp(payload: OtpSendRequest, db: Session = Depends(get_db)):
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found.")
 
-    _, dev_otp = issue_otp(db, phone, payload.purpose, user_id=user.id)
+    issue_otp(db, phone, payload.purpose, user_id=user.id)
     db.commit()
 
-    response = {
+    return {
         "message": "Verification code dispatched.",
         "phone_number": phone,
         "otp_expires_in_seconds": get_settings().otp_expire_seconds,
     }
-    if dev_otp is not None:
-        response["dev_otp"] = dev_otp
-    return response
 
 
 @router.post(
@@ -781,14 +778,33 @@ def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(
     user = db.scalar(select(User).where(User.phone_number == phone))
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found.")
+    if not _is_registration_complete(db, user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account registration is incomplete. Please finish verifying your email and setting your transaction PIN.",
+        )
+    if not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No email address is linked to this account for password reset.",
+        )
 
-    _, dev_otp = issue_otp(db, phone, "password_reset", user_id=user.id)
+    issue_email_otp(
+        db,
+        target_email=user.email,
+        purpose="password_reset",
+        phone_number=user.phone_number,
+        user_id=user.id,
+    )
     db.commit()
 
-    res = {"message": "Password reset OTP sent."}
-    if dev_otp is not None:
-        res["dev_otp"] = dev_otp
-    return res
+    settings = get_settings()
+    return {
+        "message": "Password reset verification code request accepted for your registered email address. Check your inbox or spam folder.",
+        "masked_email": mask_email(user.email),
+        "otp_expires_in_seconds": settings.otp_expire_seconds,
+        "resend_cooldown_seconds": settings.otp_resend_cooldown_seconds,
+    }
 
 
 @router.post("/password/reset-confirm")
@@ -798,10 +814,21 @@ def confirm_password_reset(payload: PasswordResetConfirmRequest, db: Session = D
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
 
-    verify_otp_code(db, phone, "password_reset", payload.otp_code)
     user = db.scalar(select(User).where(User.phone_number == phone))
     if user is None or user.credential is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found.")
+    if not _is_registration_complete(db, user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account registration is incomplete. Please finish verifying your email and setting your transaction PIN.",
+        )
+    if not user.email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No email address is linked to this account for password reset.",
+        )
+
+    verify_email_otp_code(db, user.email, "password_reset", payload.otp_code)
 
     now = datetime.now(timezone.utc)
     user.credential.password_hash = hash_password(payload.new_password)
@@ -913,12 +940,27 @@ def request_pin_reset(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _, dev_otp = issue_otp(db, current_user.phone_number, "pin_reset", user_id=current_user.id)
+    if not current_user.email or not current_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A verified email address is required for transaction PIN recovery. Link and verify your email in Profile first.",
+        )
+
+    issue_email_otp(
+        db,
+        target_email=current_user.email,
+        purpose="pin_reset",
+        phone_number=current_user.phone_number,
+        user_id=current_user.id,
+    )
     db.commit()
-    res = {"message": "PIN reset verification code sent to your registered phone."}
-    if dev_otp is not None:
-        res["dev_otp"] = dev_otp
-    return res
+    settings = get_settings()
+    return {
+        "message": "Transaction PIN reset verification code request accepted for your verified email address. Check your inbox or spam folder.",
+        "masked_email": mask_email(current_user.email),
+        "otp_expires_in_seconds": settings.otp_expire_seconds,
+        "resend_cooldown_seconds": settings.otp_resend_cooldown_seconds,
+    }
 
 
 @router.post("/pin/reset-confirm")
@@ -927,7 +969,13 @@ def confirm_pin_reset(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    verify_otp_code(db, current_user.phone_number, "pin_reset", payload.otp_code)
+    if not current_user.email or not current_user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A verified email address is required for transaction PIN recovery. Link and verify your email in Profile first.",
+        )
+
+    verify_email_otp_code(db, current_user.email, "pin_reset", payload.otp_code)
     pin_row = db.scalar(select(TransactionPin).where(TransactionPin.user_id == current_user.id))
     if pin_row is None:
         pin_row = TransactionPin(user_id=current_user.id, pin_hash=hash_pin(payload.new_pin))
@@ -942,7 +990,7 @@ def confirm_pin_reset(
         current_user.id,
         "security",
         "Transaction PIN Reset",
-        "Your 4-digit transaction PIN has been reset via OTP verification.",
+        "Your 4-digit transaction PIN has been reset via email OTP verification.",
     )
     log_audit(db, action="user.pin_reset", resource_type="transaction_pin", user_id=current_user.id)
     db.commit()
@@ -965,7 +1013,7 @@ def link_email(
 
     current_user.email = email_norm
     current_user.email_verified = False
-    _, dev_otp = issue_email_otp(
+    issue_email_otp(
         db,
         target_email=email_norm,
         purpose="email_verification",
@@ -973,10 +1021,10 @@ def link_email(
         user_id=current_user.id,
     )
     db.commit()
-    res = {"message": "Verification code sent to your email address.", "email": email_norm}
-    if dev_otp is not None:
-        res["dev_otp"] = dev_otp
-    return res
+    return {
+        "message": "Verification code request accepted for your email address. Check your inbox or spam folder.",
+        "email": email_norm,
+    }
 
 
 @router.post("/email/verify")

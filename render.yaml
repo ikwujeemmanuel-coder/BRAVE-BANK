@@ -29,19 +29,13 @@ services:
       - key: DIRECT_URL
         sync: false
       - key: EMAIL_PROVIDER
-        value: smtp
-      - key: SMTP_HOST
+        value: brevo
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
+      - key: EMAIL_FROM_NAME
+        value: BraveBank
+      - key: EMAIL_FROM_ADDRESS
         sync: false
-      - key: SMTP_PASSWORD
-        sync: false
-      - key: SMTP_FROM
-        value: no-reply@bravebank.ng
-      - key: SMTP_USE_TLS
-        value: "true"
       - key: SMS_PROVIDER
         value: mock
       - key: OTP_EXPIRE_SECONDS

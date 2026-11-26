@@ -7,7 +7,7 @@ import pytest
 
 from backend.app.database import DatabaseConfigurationError, get_db, normalize_postgres_url
 from backend.app.main import create_app
-from backend.tests.conftest import register_and_verify_user
+from backend.tests.conftest import extract_latest_email_otp, register_and_verify_user
 
 
 def test_sqlite_and_missing_database_url_are_rejected():
@@ -28,9 +28,10 @@ def test_email_linking_notifications_and_support_tickets(client):
         headers=headers,
     )
     assert link.status_code == 200
+    assert "dev_otp" not in link.json()
     verify = client.post(
         "/api/auth/email/verify",
-        json={"otp_code": link.json()["dev_otp"]},
+        json={"otp_code": extract_latest_email_otp("customer@bravebank.ng")},
         headers=headers,
     )
     assert verify.status_code == 200
@@ -146,8 +147,9 @@ def test_render_blueprint_and_external_url_cors_support(monkeypatch):
     assert "--proxy-headers" in svc["startCommand"]
     env_keys = {item["key"]: item for item in svc["envVars"]}
     assert "DATABASE_URL" in env_keys and "DIRECT_URL" in env_keys
-    assert env_keys["EMAIL_PROVIDER"]["value"] == "smtp"
-    assert "SMTP_HOST" in env_keys and "SMTP_PASSWORD" in env_keys
+    assert env_keys["EMAIL_PROVIDER"]["value"] == "brevo"
+    assert env_keys["EMAIL_FROM_NAME"]["value"] == "BraveBank"
+    assert "BREVO_API_KEY" in env_keys and "EMAIL_FROM_ADDRESS" in env_keys
 
     monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://brave-bank.onrender.com/")
     monkeypatch.setenv("ALLOWED_ORIGINS", "https://bravebank-frontend.onrender.com,*")

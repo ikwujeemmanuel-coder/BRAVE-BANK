@@ -34,12 +34,14 @@ class Settings(BaseSettings):
     test_database_url: Optional[str] = Field(default=None, alias="TEST_DATABASE_URL")
 
     email_provider: str = Field(default="mock", alias="EMAIL_PROVIDER")
-    smtp_host: Optional[str] = Field(default=None, alias="SMTP_HOST")
-    smtp_port: int = Field(default=587, alias="SMTP_PORT")
-    smtp_user: Optional[str] = Field(default=None, alias="SMTP_USER")
-    smtp_password: Optional[str] = Field(default=None, alias="SMTP_PASSWORD")
-    smtp_from: str = Field(default="no-reply@bravebank.ng", alias="SMTP_FROM")
-    smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
+    brevo_api_key: Optional[str] = Field(default=None, alias="BREVO_API_KEY")
+    email_from_name: str = Field(default="BraveBank", alias="EMAIL_FROM_NAME")
+    email_from_address: Optional[str] = Field(default=None, alias="EMAIL_FROM_ADDRESS")
+    brevo_api_url: str = Field(
+        default="https://api.brevo.com/v3/smtp/email",
+        alias="BREVO_API_URL",
+    )
+    brevo_timeout_seconds: float = Field(default=10.0, alias="BREVO_TIMEOUT_SECONDS")
 
     sms_provider: str = Field(default="mock", alias="SMS_PROVIDER")
     otp_expire_seconds: int = Field(default=300, alias="OTP_EXPIRE_SECONDS")

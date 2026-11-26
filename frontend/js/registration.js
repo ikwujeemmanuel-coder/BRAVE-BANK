@@ -71,7 +71,6 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
   const regFormError = document.getElementById("reg-form-error");
   const otpFormError = document.getElementById("otp-form-error");
   const pinFormError = document.getElementById("pin-form-error");
-  const devOtpBox = document.getElementById("dev-otp-box");
 
   const otpTargetEmailEl = document.getElementById("otp-target-email");
   const otpBoxes = Array.from(document.querySelectorAll(".otp-box"));
@@ -172,14 +171,6 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
     const emailVal = info.email || "";
     otpEmailHidden.value = emailVal;
     otpTargetEmailEl.textContent = info.masked_email || maskEmailClient(emailVal) || "your email";
-
-    if (info.dev_otp) {
-      devOtpBox.textContent = `Development Email OTP: ${info.dev_otp}`;
-      devOtpBox.classList.remove("hidden");
-    } else {
-      devOtpBox.classList.add("hidden");
-      devOtpBox.textContent = "";
-    }
 
     otpBoxes.forEach((b) => (b.value = ""));
     syncOtpHiddenValue();
@@ -314,7 +305,6 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
             masked_email: res.masked_email,
             phone_number: res.phone_number,
             resend_cooldown_seconds: res.resend_cooldown_seconds || 60,
-            dev_otp: res.dev_otp || null,
           };
           showToast(res.message, "success");
           enterEmailOtpStep(appState.pendingRegistration);
@@ -382,10 +372,6 @@ export function initRegistrationFlow({ showAuthScreen, enterAuthenticatedShell }
         method: "POST",
         body: JSON.stringify({ email }),
       });
-      if (res.dev_otp) {
-        devOtpBox.textContent = `Development Email OTP: ${res.dev_otp}`;
-        devOtpBox.classList.remove("hidden");
-      }
       startOtpCooldown(res.resend_cooldown_seconds || 60);
       setBannerError(otpFormError, "");
       showToast("A new 6-digit verification code was sent to your email.", "success");

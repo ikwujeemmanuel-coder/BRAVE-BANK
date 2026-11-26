@@ -121,8 +121,10 @@ BRAVE-BANK/
 4. Provide the prompted secret environment variables in Render:
    - `DATABASE_URL`: Neon PostgreSQL connection string (`postgresql://...`)
    - `DIRECT_URL`: Neon direct (non-pooler) PostgreSQL connection string required by Alembic migrations
-   - `EMAIL_PROVIDER`: `smtp`
-   - `SMTP_HOST`, `SMTP_PORT` (`587`), `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` (required for sending 6-digit registration Email OTPs in production)
+   - `EMAIL_PROVIDER`: `brevo`
+   - `BREVO_API_KEY`: Brevo transactional email API key (`api-key` header for `https://api.brevo.com/v3/smtp/email`)
+   - `EMAIL_FROM_NAME`: `BraveBank`
+   - `EMAIL_FROM_ADDRESS`: Verified sender email address configured in your Brevo account (required for sending registration, email verification, and password-reset OTPs over HTTPS on Render Free)
    - `FRONTEND_URL`: `https://bravebank-frontend.onrender.com`
    - `ALLOWED_ORIGINS`: `https://bravebank-frontend.onrender.com` (`RENDER_EXTERNAL_URL` is also auto-included)
 5. Render builds dependencies (`pip install -r requirements.txt`), runs `alembic -c backend/alembic.ini upgrade head`, and starts FastAPI (`uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"`).
