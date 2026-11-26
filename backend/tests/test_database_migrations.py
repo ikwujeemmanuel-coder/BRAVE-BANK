@@ -50,11 +50,32 @@ def test_alembic_migrations_create_users_and_all_models_and_support_register_sta
 
     scoped_engine = create_engine(scoped_url, pool_pre_ping=True, future=True)
     try:
+        # Simulate Neon's pre-existing non-app table before running migrations
+        with scoped_engine.begin() as conn:
+            conn.execute(
+                text(
+                    "CREATE TABLE playing_with_neon ("
+                    "id SERIAL PRIMARY KEY, name TEXT NOT NULL, value REAL)"
+                )
+            )
+            conn.execute(
+                text("INSERT INTO playing_with_neon (name, value) VALUES ('neon-row', 42.5)")
+            )
+
         cfg = Config("backend/alembic.ini")
+        command.upgrade(cfg, "head")
+        # Verify repeatable / idempotent re-execution succeeds cleanly
         command.upgrade(cfg, "head")
 
         # Verify Alembic reports no unmigrated model drift
         command.check(cfg)
+
+        # Verify pre-existing playing_with_neon table and data were untouched
+        with scoped_engine.connect() as conn:
+            neon_rows = conn.execute(
+                text("SELECT name, value FROM playing_with_neon")
+            ).fetchall()
+            assert neon_rows == [("neon-row", 42.5)]
 
         # Verify schema inspection and Alembic revision
         status_info = get_schema_status(scoped_url)

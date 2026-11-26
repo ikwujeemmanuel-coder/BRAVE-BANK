@@ -15,6 +15,13 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+IGNORED_EXTERNAL_TABLES = {"playing_with_neon"}
+
+
+def include_object(object_, name, type_, reflected, compare_to) -> bool:
+    if type_ == "table" and name in IGNORED_EXTERNAL_TABLES:
+        return False
+    return True
 
 
 def get_database_url() -> str:
@@ -37,6 +44,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -57,6 +65,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
